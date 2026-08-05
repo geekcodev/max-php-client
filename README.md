@@ -34,7 +34,7 @@ $client = ApiClient::create(
     requestFactory: $psrFactory,
     streamFactory: $psrFactory,
     uriFactory: $psrFactory,
-    accessToken: getenv('MAX_ACCESS_TOKEN'),
+    accessToken: getenv('MAX_API_TOKEN'),
 );
 
 $me = $client->getMe();
@@ -47,6 +47,20 @@ $message = $client->sendMessage(
 
 Токен передаётся в заголовке `Authorization` **без** префикса `Bearer`. Передача токена через query-параметры не
 поддерживается.
+
+## Переменные окружения
+
+| Переменная           | Обязательная | Назначение                                                                        |
+|----------------------|--------------|-----------------------------------------------------------------------------------|
+| `MAX_API_TOKEN`      | да           | Access token бота; передаётся в заголовке `Authorization` без префикса `Bearer`   |
+| `MAX_WEBHOOK_SECRET` | нет          | Секрет вебхука (заголовок `X-Max-Bot-Api-Secret`); 5–256 символов `[a-zA-Z0-9_-]` |
+
+Пример `.env`:
+
+```bash
+MAX_API_TOKEN=your-bot-access-token
+MAX_WEBHOOK_SECRET=your-webhook-secret
+```
 
 ## Возможности
 
@@ -189,13 +203,13 @@ docker compose run --rm app composer run format   # php-cs-fixer: авто-ис�
 docker compose run --rm app composer run coverage # phpunit + порог покрытия (95% строк)
 ```
 
-Покрытие кода тестами — 100% строк/методов (проверяется гейтом `composer run coverage`, порог 95%). Этот же набор проверок
-прогоняется в CI на каждый push и PR (см. `.github/workflows/ci.yml`).
+Покрытие кода тестами — 100% строк/методов (проверяется гейтом `composer run coverage`, порог 95%). Этот же набор
+проверок прогоняется в CI на каждый push и PR (см. `.github/workflows/ci.yml`).
 
 ### Интеграционные тесты
 
-Смоук-тесты против реального API (`tests/Integration/SmokeTest.php`, группа `integration`) выполняют
-read-only вызовы (`getMe`, `getSubscriptions`, `getUpdates`, `getMessages`) и запускаются отдельно:
+Смоук-тесты против реального API (`tests/Integration/SmokeTest.php`, группа `integration`) выполняют read-only вызовы
+(`getMe`, `getSubscriptions`, `getUpdates`, `getMessages`) и запускаются отдельно:
 
 ```bash
 MAX_API_TOKEN=<token> docker run --rm --network host \
