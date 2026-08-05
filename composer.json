@@ -1,0 +1,61 @@
+{
+    "name": "geekcodev/max-php-client",
+    "description": "Framework-agnostic PHP client for MAX Messenger Bot API",
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://github.com/geekcodev/max-php-client",
+    "keywords": [
+        "max",
+        "messenger",
+        "bot",
+        "api",
+        "client",
+        "psr-18",
+        "webhook",
+        "long-polling"
+    ],
+    "authors": [
+        {
+            "name": "Evgeny Semenov",
+            "email": "geekco@yandex.ru",
+            "homepage": "https://github.com/geekcodev"
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0",
+        "psr/http-message": "^1.1|^2.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.0",
+        "guzzlehttp/guzzle": "^7.15",
+        "guzzlehttp/psr7": "^2.7",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^11.5"
+    },
+    "suggest": {
+        "guzzlehttp/guzzle": "PSR-18 HTTP client (recommended implementation, ships with Laravel)",
+        "symfony/http-client": "PSR-18 HTTP client adapter for Symfony projects"
+    },
+    "autoload": {
+        "psr-4": {
+            "GeekCo\\MaxPhpClient\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "GeekCo\\MaxPhpClient\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse",
+        "lint": "php-cs-fixer fix --dry-run --diff",
+        "format": "php-cs-fixer fix",
+        "coverage": "phpunit --coverage-clover build/coverage.xml && php scripts/check-coverage.php"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

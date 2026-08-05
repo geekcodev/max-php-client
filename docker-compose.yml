@@ -1,0 +1,18 @@
+services:
+
+  app:
+    restart: always
+    build:
+      context: ./
+      dockerfile: Dockerfile
+      args:
+        INSTALL_XDEBUG: "true"
+    user: 1000:1000
+    volumes:
+      - ./:/var/www/html
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - TZ=Europe/Moscow
+      - XDEBUG_MODE=coverage
+      - MAX_API_TOKEN=${MAX_API_TOKEN:-}

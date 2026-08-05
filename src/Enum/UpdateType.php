@@ -1,0 +1,24 @@
+<?php
+
+declare(strict_types=1);
+
+namespace GeekCo\MaxPhpClient\Enum;
+
+enum UpdateType: string
+{
+    case BotAdded = 'bot_added';
+    case BotStarted = 'bot_started';
+    case BotStopped = 'bot_stopped';
+    case BotRemoved = 'bot_removed';
+    case ChatTitleChanged = 'chat_title_changed';
+    case DialogCleared = 'dialog_cleared';
+    case DialogMuted = 'dialog_muted';
+    case DialogUnmuted = 'dialog_unmuted';
+    case DialogRemoved = 'dialog_removed';
+    case MessageCallback = 'message_callback';
+    case MessageCreated = 'message_created';
+    case MessageEdited = 'message_edited';
+    case MessageRemoved = 'message_removed';
+    case UserAdded = 'user_added';
+    case UserRemoved = 'user_removed';
+}

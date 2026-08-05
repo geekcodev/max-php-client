@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    name: Lint, static analysis, tests and coverage
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: max-php-client:ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image with Xdebug
+        run: docker build --build-arg INSTALL_XDEBUG=true -t "$IMAGE" .
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('composer.json') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: docker run --rm -e COMPOSER_ROOT_VERSION=dev-main -v "$PWD":/var/www/html -w /var/www/html "$IMAGE" composer install --no-interaction --prefer-dist
+
+      - name: Check code style
+        run: docker run --rm -e COMPOSER_ROOT_VERSION=dev-main -v "$PWD":/var/www/html -w /var/www/html "$IMAGE" composer run lint
+
+      - name: Static analysis
+        run: docker run --rm -e COMPOSER_ROOT_VERSION=dev-main -v "$PWD":/var/www/html -w /var/www/html "$IMAGE" composer run analyse
+
+      - name: Run tests and coverage gate
+        run: docker run --rm -e COMPOSER_ROOT_VERSION=dev-main -e XDEBUG_MODE=coverage -v "$PWD":/var/www/html -w /var/www/html "$IMAGE" composer run coverage
+
+  integration:
+    name: Integration smoke tests
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ghcr.io/geekcodev/php:8.4-bookworm
+      MAX_API_TOKEN: ${{ secrets.MAX_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        if: ${{ env.MAX_API_TOKEN != '' }}
+
+      - name: Install dependencies
+        if: ${{ env.MAX_API_TOKEN != '' }}
+        run: docker run --rm -e COMPOSER_ROOT_VERSION=dev-main -v "$PWD":/var/www/html -w /var/www/html "$IMAGE" composer install --no-interaction --prefer-dist
+
+      - name: Run integration tests
+        if: ${{ env.MAX_API_TOKEN != '' }}
+        run: docker run --rm -e MAX_API_TOKEN="$MAX_API_TOKEN" -v "$PWD":/var/www/html -w /var/www/html "$IMAGE" vendor/bin/phpunit --group integration
+
+      - name: Skip when MAX_API_TOKEN is not configured
+        if: ${{ env.MAX_API_TOKEN == '' }}
+        run: echo "MAX_API_TOKEN is not set; integration tests skipped."
