@@ -48,6 +48,25 @@ final class RequestBuilderTest extends TestCase
     }
 
     #[Test]
+    public function it_builds_a_raw_body_request_from_a_stream(): void
+    {
+        $factory = new HttpFactory();
+        $stream = $factory->createStream('stream-data');
+
+        $request = $this->builder()->request(
+            'POST',
+            '/uploads',
+            ['type' => 'file'],
+            rawBody: $stream,
+            headers: ['Content-Type' => 'multipart/form-data; boundary=xyz'],
+        );
+
+        $this->assertSame('multipart/form-data; boundary=xyz', $request->getHeaderLine('Content-Type'));
+        $this->assertSame($stream, $request->getBody());
+        $this->assertSame('stream-data', (string) $request->getBody());
+    }
+
+    #[Test]
     public function it_rejects_non_https_uris(): void
     {
         $this->expectException(InvalidArgumentException::class);

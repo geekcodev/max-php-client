@@ -65,7 +65,7 @@ final class ApiClient
         $requestBuilder = new RequestBuilder($uriFactory, $requestFactory, $streamFactory, $baseUri, $accessToken);
         $http = new HttpClient($httpClient, $requestBuilder, new ResponseDecoder(), $retryStrategy ?? new RetryStrategy());
 
-        return new self($http, $rateLimiter ?? new RateLimiter(), new Uploader($http));
+        return new self($http, $rateLimiter ?? new RateLimiter(), new Uploader($http, $streamFactory));
     }
 
     public function getMe(): BotInfo

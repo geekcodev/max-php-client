@@ -15,6 +15,7 @@ use GeekCo\MaxPhpClient\Transport\RequestBuilder;
 use GeekCo\MaxPhpClient\Transport\ResponseDecoder;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\StreamInterface;
 
 final class UploaderTest extends TestCase
 {
@@ -25,18 +26,26 @@ final class UploaderTest extends TestCase
         $http = new MockHttpClient();
         $requestBuilder = new RequestBuilder($factory, $factory, $factory, 'https://platform-api2.max.ru', 'token');
         $client = new HttpClient($http, $requestBuilder, new ResponseDecoder(), new RetryStrategy());
-        $uploader = new Uploader($client);
+        $uploader = new Uploader($client, $factory);
 
         $file = tempnam(sys_get_temp_dir(), 'max-test');
         file_put_contents($file, 'file-contents');
         $name = basename($file);
 
         $http->next(function ($request) {
-            $body = (string) $request->getBody();
+            $body = $request->getBody();
 
             $this->assertSame('multipart/form-data', $request->getHeaderLine('Content-Type') !== '' ? explode(';', $request->getHeaderLine('Content-Type'))[0] : '');
-            $this->assertStringContainsString('name="file"', $body);
-            $this->assertStringContainsString('file-contents', $body);
+            $this->assertInstanceOf(StreamInterface::class, $body);
+            $this->assertTrue($body->isSeekable());
+            $body->rewind();
+            $this->assertStringContainsString('name="file"', (string) $body);
+            $body->rewind();
+            $this->assertStringContainsString('file-contents', (string) $body);
+            $body->rewind();
+            $first = (string) $body;
+            $body->rewind();
+            $this->assertSame($first, (string) $body);
             $this->assertSame('type=file', $request->getUri()->getQuery());
 
             return (new HttpFactory())->createResponse(200)
@@ -65,7 +74,7 @@ final class UploaderTest extends TestCase
 
         $this->expectException(InvalidArgumentException::class);
 
-        (new Uploader($client))->upload(UploadType::Image, '/nonexistent/file.png');
+        (new Uploader($client, $factory))->upload(UploadType::Image, '/nonexistent/file.png');
     }
 
     #[Test]
@@ -90,7 +99,7 @@ final class UploaderTest extends TestCase
                 ->withBody((new HttpFactory())->createStream(json_encode(['url' => 'https://fu.oneme.ru/x'], JSON_THROW_ON_ERROR)));
         });
 
-        $result = (new Uploader($client))->upload(UploadType::File, $file . '.xzzz');
+        $result = (new Uploader($client, $factory))->upload(UploadType::File, $file . '.xzzz');
 
         $this->assertSame('https://fu.oneme.ru/x', $result->url);
 
@@ -120,7 +129,7 @@ final class UploaderTest extends TestCase
                 ->withBody((new HttpFactory())->createStream(json_encode(['url' => 'https://iu.oneme.ru/x'], JSON_THROW_ON_ERROR)));
         });
 
-        $result = (new Uploader($client))->upload(UploadType::Image, $file);
+        $result = (new Uploader($client, $factory))->upload(UploadType::Image, $file);
 
         $this->assertSame('https://iu.oneme.ru/x', $result->url);
 
@@ -149,7 +158,7 @@ final class UploaderTest extends TestCase
         $this->expectException(\GeekCo\MaxPhpClient\Exception\InvalidResponseException::class);
 
         try {
-            (new Uploader($client))->upload(UploadType::File, $file);
+            (new Uploader($client, $factory))->upload(UploadType::File, $file);
         } finally {
             unlink($file);
         }

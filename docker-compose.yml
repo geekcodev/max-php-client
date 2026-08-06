@@ -16,3 +16,19 @@ services:
       - TZ=Europe/Moscow
       - XDEBUG_MODE=coverage
       - MAX_API_TOKEN=${MAX_API_TOKEN:-}
+      - MAX_WEBHOOK_SECRET=${MAX_WEBHOOK_SECRET:-}
+
+  # Запуск примеров: examples/run.sh <example.php> (docker compose run).
+  # Профиль — чтобы сервис не стартовал при обычном `docker compose up`.
+  # network_mode host: TLS до platform-api2.max.ru из Docker-сети блокируется.
+  examples:
+    image: ghcr.io/geekcodev/php:8.4-bookworm
+    profiles: ["examples"]
+    network_mode: host
+    user: 1000:1000
+    volumes:
+      - ./:/var/www/html
+    environment:
+      - TZ=Europe/Moscow
+      - MAX_API_TOKEN=${MAX_API_TOKEN:-}
+      - MAX_WEBHOOK_SECRET=${MAX_WEBHOOK_SECRET:-}

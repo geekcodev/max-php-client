@@ -74,6 +74,52 @@ MAX_WEBHOOK_SECRET=your-webhook-secret
 - Верификация контакта из кнопки `request_contact`
 - Типизированные исключения
 
+## Примеры
+
+Полностью рабочие примеры — в каталоге `examples/`. Требуются переменные из `.env` (`MAX_API_TOKEN`, для вебхука —
+`MAX_WEBHOOK_SECRET`).
+
+**Запуск через Docker** (рекомендуется; PHP/Composer на машине не нужны, зависимости ставятся автоматически, переменные
+берутся из `.env`). Примеры запускаются через сервис `examples` из `docker-compose.yml` (`docker compose run`):
+
+```bash
+./examples/run.sh echo-bot-long-polling.php
+./examples/run.sh echo-bot-webhook.php    # слушает http://localhost:8080
+```
+
+Для любого другого примера укажите его имя: `./examples/run.sh send-to-user.php`.
+
+Вебхук-пример использует встроенный PHP-сервер на `localhost:8080`. API принимает вебхуки только по HTTPS на публичном
+адресе, поэтому для локального тестирования нужен туннель до этого порта, например
+`cloudflared tunnel --url http://localhost:8080` или `ngrok http 8080`, — полученный `https://...` адрес укажите в
+`createSubscription()`. Порт можно переопределить: `MAX_EXAMPLES_PORT=9090 ./examples/run.sh echo-bot-webhook.php`.
+
+**Запуск локально** (PHP >= 8.4 + Composer):
+
+```bash
+source .env
+composer install
+php examples/echo-bot-long-polling.php
+php -S 0.0.0.0:8080 examples/echo-bot-webhook.php
+```
+
+Список примеров:
+
+| Файл                                 | Что показывает                                                                     |
+|--------------------------------------|------------------------------------------------------------------------------------|
+| `examples/echo-bot-webhook.php`      | Вебхук-бот: верификация секрета, разбор апдейтов, эхо, ответ на колбэки (`php -S`) |
+| `examples/echo-bot-long-polling.php` | Long polling-бот с тем же обработчиком апдейтов                                    |
+| `examples/inline-keyboard.php`       | Отправка inline-клавиатуры (кнопки callback/link)                                  |
+| `examples/send-media.php`            | Загрузка медиа и отправка с подписью, форматированием и `disable_link_preview`     |
+| `examples/send-to-user.php`          | Идентификация пользователя и отправка ему личного сообщения                        |
+| `examples/set-commands.php`          | Установка команд бота (`editBotCommands`)                                          |
+| `examples/verify-contact.php`        | Верификация контакта из кнопки `request_contact`                                   |
+
+**Как определить пользователя и отправить ему сообщение.** Бот получает `user_id` и `chat_id` диалога из любого апдейта
+(`$update->user->userId`, `$update->chatId`). Сообщение пользователю отправляется через `Recipient(userId: ...)`;
+подробная информация о пользователе — через `getChatMembers($chatId, [$userId])` (аватар, описание, роль админа) или
+`getChat($chatId)->dialogWithUser`.
+
 ## Ретраи
 
 ```php
@@ -127,8 +173,11 @@ if (!$handler->verify($request)) {
     // 401
 }
 
-/** @var list<GeekCo\MaxPhpClient\Dto\Update> $updates */
+/** @var GeekCo\MaxPhpClient\Dto\Update|list<GeekCo\MaxPhpClient\Dto\Update> $updates */
 $updates = $handler->decode($request);
+if ($updates instanceof GeekCo\MaxPhpClient\Dto\Update) {
+    $updates = [$updates];
+}
 ```
 
 Создание подписки:
@@ -191,6 +240,60 @@ try {
 - Секреты и токены никогда не логируются.
 - Все URL валидируются (`https://`, без SSRF).
 - Постоянновременное сравнение секретов через `hash_equals`.
+
+## Интеграция в фреймворки
+
+Ядро framework-agnostic (PSR-7/17/18). Адаптация сводится к регистрации `ApiClient` как синглтона в DI-контейнере и
+пробросу `WebhookHandler` в контроллер:
+
+```php
+// Регистрация в DI-контейнере (Laravel ServiceProvider / Symfony service).
+// Клиент создаётся один раз и внедряется в сервисы и контроллеры.
+$psrFactory = new HttpFactory();
+
+$container->singleton(ApiClient::class, static fn (): ApiClient => ApiClient::create(
+    httpClient: $container->get(ClientInterface::class), // PSR-18 клиент фреймворка
+    requestFactory: $psrFactory,
+    streamFactory: $psrFactory,
+    uriFactory: $psrFactory,
+    accessToken: $config['api_token'],
+));
+
+// Контроллер вебхука. Секрет проверяется через verify() (иначе 401),
+// невалидный payload — 400. Ответ 200 обязателен в течение 30 сек,
+// иначе API повторит доставку по экспоненте.
+public function webhook(ServerRequestInterface $request): ResponseInterface
+{
+    if (!$this->handler->verify($request)) {
+        return new Response(401);
+    }
+
+    try {
+        $updates = $this->handler->decode($request);
+    } catch (InvalidResponseException) {
+        return new Response(400);
+    }
+
+    if ($updates instanceof Update) {
+        $updates = [$updates];
+    }
+
+    foreach ($updates as $update) {
+        $this->dispatch($update);
+    }
+
+    return new Response(200);
+}
+```
+
+Практики для production:
+
+- Храните `user_id` (`$update->user->userId`) и `chat_id` (`$update->chatId`) в своей БД; личные сообщения отправляйте
+  через `Recipient(userId: ...)`.
+- Загрузка медиа выполняется клиентом целиком (`uploadMedia`), включая ожидание готовности вложения — не дублируйте этот
+  код в проекте.
+- Для long polling есть готовый `LongPollingRunner`; для production используйте вебхуки.
+- Обработку апдейтов держите асинхронной (очередь), чтобы укладываться в лимит ответа webhook 30 сек.
 
 ## Разработка
 

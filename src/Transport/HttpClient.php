@@ -9,6 +9,7 @@ use GeekCo\MaxPhpClient\Exception\NetworkException;
 use GeekCo\MaxPhpClient\Retry\RetryStrategy;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\StreamInterface;
 
 final class HttpClient
 {
@@ -30,7 +31,7 @@ final class HttpClient
         string $path,
         array $query = [],
         ?array $jsonBody = null,
-        ?string $rawBody = null,
+        string|StreamInterface|null $rawBody = null,
         array $headers = [],
         ?string $absoluteUri = null,
     ): mixed {
