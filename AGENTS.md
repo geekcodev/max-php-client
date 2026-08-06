@@ -60,20 +60,20 @@ phpstan.neon                  level max
 
 ### Слои
 
-| Слой        | Ключевые классы                                   | Назначение                                                                  |
-|-------------|---------------------------------------------------|-----------------------------------------------------------------------------|
-| API         | `ApiClient`, `ApiClient::create()`                | Единственная точка входа; фабрика компонентов                               |
-| Transport   | `HttpClient`, `RequestBuilder`, `ResponseDecoder` | PSR-18 запросы, сборка URI/заголовков, разбор ответов, нормализация ошибок  |
-| Retry       | `RetryStrategy`                                   | Экспоненциальный бэкофф: 429/5xx/сетевые сбои/`attachment.not.ready`        |
-| RateLimit   | `RateLimiter`                                     | Token bucket, 2 запроса/сек                                                 |
-| Webhook     | `WebhookHandler`                                  | Парсинг Update, верификация секрета (`hash_equals`)                         |
-| LongPolling | `LongPollingRunner`                               | Обёртка над `getUpdates` (только dev/тесты)                                 |
-| Upload      | `Uploader`                                        | Multipart-загрузка медиа (требует `ext-fileinfo`)                           |
-| Security    | `ContactVerifier`                                 | Верификация контакта по кнопке `request_contact`                            |
-| Internal    | `Internal\Json`                                   | Единственное место работы с JSON (кодирование/декодирование с исключениями) |
-| Dto         | `src/Dto/*` (36 классов)                          | Типизированные модели запросов и ответов                                    |
-| Enum        | `src/Enum/*` (8)                                  | Строго типизированные значения                                              |
-| Exception   | `src/Exception/*` (7)                             | Иерархия типизированных ошибок                                              |
+| Слой        | Ключевые классы                                   | Назначение                                                                         |
+|-------------|---------------------------------------------------|------------------------------------------------------------------------------------|
+| API         | `ApiClient`, `ApiClient::create()`                | Единственная точка входа; фабрика компонентов                                      |
+| Transport   | `HttpClient`, `RequestBuilder`, `ResponseDecoder` | PSR-18 запросы, сборка URI/заголовков, разбор ответов, нормализация ошибок         |
+| Retry       | `RetryStrategy`                                   | Экспоненциальный бэкофф: 429/5xx/сетевые сбои/`attachment.not.ready`               |
+| RateLimit   | `RateLimiter`                                     | Token bucket, 2 запроса/сек                                                        |
+| Webhook     | `WebhookHandler`                                  | Парсинг Update, верификация секрета (`hash_equals`)                                |
+| LongPolling | `LongPollingRunner`                               | Обёртка над `getUpdates` (только dev/тесты)                                        |
+| Upload      | `Uploader`                                        | Multipart-загрузка медиа (требует `ext-fileinfo`)                                  |
+| Security    | `ContactVerifier`, `WebAppDataValidator`          | Верификация контакта по кнопке `request_contact`; стартовых данных мини-приложения |
+| Internal    | `Internal\Json`                                   | Единственное место работы с JSON (кодирование/декодирование с исключениями)        |
+| Dto         | `src/Dto/*` (36 классов)                          | Типизированные модели запросов и ответов                                           |
+| Enum        | `src/Enum/*` (8)                                  | Строго типизированные значения                                                     |
+| Exception   | `src/Exception/*` (7)                             | Иерархия типизированных ошибок                                                     |
 
 ### Контракты компонентов
 
@@ -98,6 +98,10 @@ phpstan.neon                  level max
   **ждать** перед отправкой сообщения — иначе `attachment.not.ready` (ретраится автоматически).
 - **`ContactVerifier`** — верификация: `hash_equals(hash_hmac('sha256', $normalizedVcf, $accessToken), $hash)`; в
   `vcf_info` `\r\n` нормализуется в реальные переносы строк.
+- **`WebAppDataValidator`** — верификация стартовых данных мини-приложения (`verify(string $initData)` и
+  `verifyFromUrl(string $url)`): `secret_key = HMAC-SHA256('WebAppData', token)`, подпись
+  `hex(HMAC-SHA256(secret_key, launch_params))`; `launch_params` — значения после URL-декодирования, отсортированные по
+  ключам, `key=value` через `\n`, без `hash`. Сравнение — `hash_equals`.
 
 ### Соглашения DTO
 
