@@ -72,6 +72,7 @@ MAX_WEBHOOK_SECRET=your-webhook-secret
 - Обработка вебхуков с верификацией секрета `X-Max-Bot-Api-Secret`
 - Long polling runner
 - Верификация контакта из кнопки `request_contact`
+- Верификация стартовых данных мини-приложения (`WebAppDataValidator`)
 - Типизированные исключения
 
 ## Примеры
@@ -114,6 +115,7 @@ php -S 0.0.0.0:8080 examples/echo-bot-webhook.php
 | `examples/send-to-user.php`          | Идентификация пользователя и отправка ему личного сообщения                        |
 | `examples/set-commands.php`          | Установка команд бота (`editBotCommands`)                                          |
 | `examples/verify-contact.php`        | Верификация контакта из кнопки `request_contact`                                   |
+| `examples/verify-webapp-data.php`    | Верификация стартовых данных мини-приложения (`WebAppDataValidator`)               |
 
 **Как определить пользователя и отправить ему сообщение.** Бот получает `user_id` и `chat_id` диалога из любого апдейта
 (`$update->user->userId`, `$update->chatId`). Сообщение пользователю отправляется через `Recipient(userId: ...)`;
@@ -237,6 +239,9 @@ try {
 
 - Верификация контакта: `hash_equals(hash_hmac('sha256', $normalizedVcf, $accessToken), $hash)`,
   `\r\n` в `vcf_info` заменяются на реальные переносы строк.
+- Верификация стартовых данных мини-приложения (`WebAppDataValidator`):
+  `secret_key = HMAC-SHA256('WebAppData', token)`, подпись `launch_params` по алгоритму
+  https://dev.max.ru/docs/webapps/validation.
 - Секреты и токены никогда не логируются.
 - Все URL валидируются (`https://`, без SSRF).
 - Постоянновременное сравнение секретов через `hash_equals`.
