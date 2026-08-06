@@ -8,6 +8,7 @@ use GeekCo\MaxPhpClient\Exception\InvalidArgumentException;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
+use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriFactoryInterface;
 
 final class RequestBuilder
@@ -31,7 +32,7 @@ final class RequestBuilder
         string $path,
         array $query = [],
         ?array $jsonBody = null,
-        ?string $rawBody = null,
+        string|StreamInterface|null $rawBody = null,
         array $headers = [],
         ?string $absoluteUri = null,
     ): RequestInterface {
@@ -54,7 +55,9 @@ final class RequestBuilder
             $request = $request->withHeader('Content-Type', 'application/json');
             $request = $request->withBody($this->streamFactory->createStream($encoded));
         } elseif ($rawBody !== null) {
-            $request = $request->withBody($this->streamFactory->createStream($rawBody));
+            $request = $request->withBody(
+                $rawBody instanceof StreamInterface ? $rawBody : $this->streamFactory->createStream($rawBody),
+            );
         }
 
         return $request;

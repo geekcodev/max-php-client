@@ -3,5 +3,8 @@ parameters:
     paths:
         - src
     tmpDir: /tmp/phpstan
+    # Осознанный компромисс: PHPStan не умеет выводить типы элементов массива из
+    # обобщённых фабрик (fromArray/toArray DTO). Оставляем точную аннотацию на месте,
+    # а не строгий вывод, чтобы не засорять код типом list<mixed>.
     ignoreErrors:
         - identifier: missingType.iterableValue
