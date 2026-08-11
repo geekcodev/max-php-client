@@ -242,6 +242,9 @@ try {
 - Верификация стартовых данных мини-приложения (`WebAppDataValidator`):
   `secret_key = HMAC-SHA256('WebAppData', token)`, подпись `launch_params` по алгоритму
   https://dev.max.ru/docs/webapps/validation.
+- `WebAppDataValidator::resolve()` дополнительно извлекает `user_id`/`chat_id` (DTO `WebAppIdentity`) и при заданном
+  `maxAge` отбрасывает устаревшие `auth_date` (replay-защита). `verifyFromUrl()`/`resolveFromUrl()` понимают как
+  query-параметр `?WebAppData=...`, так и фрагмент `#WebAppData=...`.
 - Секреты и токены никогда не логируются.
 - Все URL валидируются (`https://`, без SSRF).
 - Постоянновременное сравнение секретов через `hash_equals`.

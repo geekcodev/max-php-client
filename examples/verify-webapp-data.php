@@ -18,7 +18,10 @@ require __DIR__ . '/bootstrap.php';
  *   https://dev.max.ru/docs/webapps/validation
  */
 
-$validator = new WebAppDataValidator(accessToken: (string) getenv('MAX_API_TOKEN'));
+$validator = new WebAppDataValidator(
+    accessToken: (string) getenv('MAX_API_TOKEN'),
+    maxAge: 86400,
+);
 
 // Строка initData из window.WebApp.initData (значение параметра WebAppData в URL).
 $initData = 'auth_date=1771409719&chat=%7B...%7D&user=%7B...%7D&query_id=...&hash=...';
@@ -28,4 +31,18 @@ if ($validator->verify($initData)) {
 } else {
     fwrite(STDERR, "Invalid WebApp data hash\n");
     exit(1);
+}
+
+// Верифицированные данные пользователя/диалога (user_id/chat_id) — с проверкой
+// свежести auth_date (maxAge):
+$identity = $validator->resolve($initData);
+if ($identity !== null) {
+    fwrite(STDOUT, "user_id={$identity->userId} chat_id={$identity->chatId}\n");
+}
+
+// Аналогично из URL открытия мини-приложения (?WebAppData=... или #WebAppData=...):
+$url = 'https://example.com/app?WebAppData=' . urlencode($initData);
+$identityFromUrl = $validator->resolveFromUrl($url);
+if ($identityFromUrl !== null) {
+    fwrite(STDOUT, "from url: user_id={$identityFromUrl->userId} chat_id={$identityFromUrl->chatId}\n");
 }
