@@ -15,9 +15,11 @@ final class WebAppDataValidatorTest extends TestCase
     /**
      * @return array{data: string, hash: string}
      */
-    private function validWebAppData(): array
+    private function validWebAppData(?int $authDate = null): array
     {
-        $launchParams = "auth_date=1771409719\n"
+        $authDate ??= 1771409719;
+
+        $launchParams = "auth_date={$authDate}\n"
             . "chat={\"id\":12345,\"type\":\"DIALOG\"}\n"
             . "ip=192.168.0.1\n"
             . "query_id=4c0ab423-342b-4e45-aea4-2747dbc500cd\n"
@@ -31,7 +33,7 @@ final class WebAppDataValidatorTest extends TestCase
             'user=' . rawurlencode('{"id":67890,"first_name":"Max","last_name":"User","username":null,"language_code":"ru","photo_url":null}'),
             'ip=192.168.0.1',
             'chat=' . rawurlencode('{"id":12345,"type":"DIALOG"}'),
-            'auth_date=1771409719',
+            "auth_date={$authDate}",
             'query_id=4c0ab423-342b-4e45-aea4-2747dbc500cd',
             'hash=' . $hash,
         ]);
@@ -54,6 +56,19 @@ final class WebAppDataValidatorTest extends TestCase
     {
         $webAppData = $this->validWebAppData();
         $url = 'https://example.com/app#'
+            . 'WebAppData=' . rawurlencode($webAppData['data'])
+            . '&WebAppPlatform=web&WebAppVersion=26.2.8';
+
+        $validator = new WebAppDataValidator(self::TOKEN);
+
+        $this->assertTrue($validator->verifyFromUrl($url));
+    }
+
+    #[Test]
+    public function it_verifies_web_app_data_from_url_query_param(): void
+    {
+        $webAppData = $this->validWebAppData();
+        $url = 'https://example.com/app?'
             . 'WebAppData=' . rawurlencode($webAppData['data'])
             . '&WebAppPlatform=web&WebAppVersion=26.2.8';
 
@@ -162,5 +177,92 @@ final class WebAppDataValidatorTest extends TestCase
         $validator = new WebAppDataValidator(self::TOKEN);
 
         $this->assertFalse($validator->verifyFromUrl($url));
+    }
+
+    #[Test]
+    public function it_resolves_user_and_chat_ids(): void
+    {
+        $webAppData = $this->validWebAppData();
+
+        $validator = new WebAppDataValidator(self::TOKEN);
+
+        $identity = $validator->resolve($webAppData['data']);
+
+        $this->assertNotNull($identity);
+        $this->assertSame(67890, $identity->userId);
+        $this->assertSame(12345, $identity->chatId);
+        $this->assertSame(['user_id' => 67890, 'chat_id' => 12345], $identity->toArray());
+    }
+
+    #[Test]
+    public function it_resolves_null_identity_for_invalid_data(): void
+    {
+        $validator = new WebAppDataValidator(self::TOKEN);
+
+        $this->assertNull($validator->resolve('invalid-data'));
+        $this->assertNull($validator->resolve($this->validWebAppData()['data'] . '&tampered=1'));
+    }
+
+    #[Test]
+    public function it_resolves_from_url_query_param_and_fragment(): void
+    {
+        $webAppData = $this->validWebAppData();
+        $queryUrl = 'https://example.com/app?WebAppData=' . rawurlencode($webAppData['data']);
+        $fragmentUrl = 'https://example.com/app#WebAppData=' . rawurlencode($webAppData['data']);
+
+        $validator = new WebAppDataValidator(self::TOKEN);
+
+        $this->assertSame(67890, $validator->resolveFromUrl($queryUrl)?->userId);
+        $this->assertSame(12345, $validator->resolveFromUrl($fragmentUrl)?->chatId);
+        $this->assertNull($validator->resolveFromUrl('https://example.com/app'));
+    }
+
+    #[Test]
+    public function it_rejects_stale_auth_date_when_max_age_set(): void
+    {
+        $webAppData = $this->validWebAppData(authDate: time() - 3600);
+
+        $validator = new WebAppDataValidator(self::TOKEN, maxAge: 60);
+
+        $this->assertNull($validator->resolve($webAppData['data']));
+        $this->assertTrue($validator->verify($webAppData['data']));
+    }
+
+    #[Test]
+    public function it_accepts_fresh_auth_date_when_max_age_set(): void
+    {
+        $webAppData = $this->validWebAppData(authDate: time());
+
+        $validator = new WebAppDataValidator(self::TOKEN, maxAge: 60);
+
+        $this->assertSame(67890, $validator->resolve($webAppData['data'])?->userId);
+    }
+
+    #[Test]
+    public function it_skips_freshness_check_when_max_age_is_zero(): void
+    {
+        $webAppData = $this->validWebAppData(authDate: time() - 3600);
+
+        $validator = new WebAppDataValidator(self::TOKEN);
+
+        $this->assertSame(67890, $validator->resolve($webAppData['data'])?->userId);
+    }
+
+    #[Test]
+    public function it_returns_null_identity_when_user_and_chat_are_missing(): void
+    {
+        $authDate = time();
+        $launchParams = "auth_date={$authDate}\nquery_id=test";
+        $secretKey = hash_hmac('sha256', self::TOKEN, 'WebAppData', binary: true);
+        $hash = hash_hmac('sha256', $launchParams, $secretKey);
+        $data = "auth_date={$authDate}&query_id=test&hash={$hash}";
+
+        $validator = new WebAppDataValidator(self::TOKEN);
+
+        $identity = $validator->resolve($data);
+
+        $this->assertNotNull($identity);
+        $this->assertNull($identity->userId);
+        $this->assertNull($identity->chatId);
     }
 }

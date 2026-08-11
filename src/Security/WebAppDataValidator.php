@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Security;
 
+use GeekCo\MaxPhpClient\Dto\WebAppIdentity;
+
 /**
  * Серверная валидация стартовых данных мини-приложения MAX.
  *
@@ -20,6 +22,7 @@ final class WebAppDataValidator
 
     public function __construct(
         private readonly string $accessToken,
+        private readonly int $maxAge = 0,
     ) {
     }
 
@@ -28,9 +31,64 @@ final class WebAppDataValidator
      */
     public function verify(string $webAppData): bool
     {
+        return $this->decodeAndVerify($webAppData) !== null;
+    }
+
+    /**
+     * Верификация данных из URL, по которому открыто мини-приложение.
+     * WebAppData ищется в query-параметре (?WebAppData=...) или во фрагменте (#WebAppData=...).
+     */
+    public function verifyFromUrl(string $url): bool
+    {
+        $webAppData = $this->webAppDataFromUrl($url);
+
+        return $webAppData !== null && $this->verify($webAppData);
+    }
+
+    /**
+     * Верификация + извлечение идентификации пользователя и диалога.
+     * При maxAge > 0 дополнительно проверяется свежесть auth_date (replay-защита).
+     */
+    public function resolve(string $webAppData): ?WebAppIdentity
+    {
+        $pairs = $this->decodeAndVerify($webAppData);
+        if ($pairs === null) {
+            return null;
+        }
+
+        if ($this->maxAge > 0 && !$this->isFresh($pairs)) {
+            return null;
+        }
+
+        return new WebAppIdentity(
+            userId: $this->idFromJson($pairs['user'] ?? null),
+            chatId: $this->idFromJson($pairs['chat'] ?? null),
+        );
+    }
+
+    /**
+     * resolve() из URL (query-параметр или фрагмент).
+     */
+    public function resolveFromUrl(string $url): ?WebAppIdentity
+    {
+        $webAppData = $this->webAppDataFromUrl($url);
+        if ($webAppData === null) {
+            return null;
+        }
+
+        return $this->resolve($webAppData);
+    }
+
+    /**
+     * Возвращает декодированные пары (без hash) при валидной подписи, иначе null.
+     *
+     * @return array<string, string>|null
+     */
+    private function decodeAndVerify(string $webAppData): ?array
+    {
         $pairs = $this->parsePairs($webAppData);
         if ($pairs === null) {
-            return false;
+            return null;
         }
 
         foreach ($pairs as &$pair) {
@@ -45,7 +103,7 @@ final class WebAppDataValidator
             }
         }
         if (count($hashes) !== 1) {
-            return false;
+            return null;
         }
         [$hashIndex, $originalHash] = $hashes[0];
 
@@ -62,39 +120,76 @@ final class WebAppDataValidator
 
         $secretKey = hash_hmac('sha256', $this->accessToken, self::DATA_KEY, binary: true);
 
-        return hash_equals(hash_hmac('sha256', $launchParams, $secretKey), $originalHash);
+        if (!hash_equals(hash_hmac('sha256', $launchParams, $secretKey), $originalHash)) {
+            return null;
+        }
+
+        $result = [];
+        foreach ($pairs as $pair) {
+            $result[$pair[0]] = $pair[1];
+        }
+
+        return $result;
     }
 
-    /**
-     * Верификация данных из URL, по которому открыто мини-приложение.
-     * Параметры платформы извлекаются из фрагмента URL (данные после #).
-     */
-    public function verifyFromUrl(string $url): bool
+    private function webAppDataFromUrl(string $url): ?string
     {
-        $fragment = parse_url($url, PHP_URL_FRAGMENT);
-        if ($fragment === false || $fragment === null) {
-            return false;
+        $parts = parse_url($url);
+        if ($parts === false) {
+            return null;
         }
 
-        $pairs = $this->parsePairs($fragment);
-        if ($pairs === null) {
-            return false;
-        }
+        foreach ([$parts['fragment'] ?? null, $parts['query'] ?? null] as $source) {
+            if ($source === null) {
+                continue;
+            }
 
-        $keys = array_map(static fn (array $pair): string => $pair[0], $pairs);
-        if (count($keys) !== count(array_unique($keys))) {
-            return false;
-        }
+            $pairs = $this->parsePairs($source);
+            if ($pairs === null) {
+                return null;
+            }
 
-        $webAppData = null;
-        foreach ($pairs as $pair) {
-            if ($pair[0] === self::DATA_KEY) {
-                $webAppData = rawurldecode($pair[1]);
-                break;
+            $keys = array_map(static fn (array $pair): string => $pair[0], $pairs);
+            if (count($keys) !== count(array_unique($keys))) {
+                return null;
+            }
+
+            foreach ($pairs as $pair) {
+                if ($pair[0] === self::DATA_KEY) {
+                    $webAppData = rawurldecode($pair[1]);
+                    if ($webAppData !== '') {
+                        return $webAppData;
+                    }
+                }
             }
         }
 
-        return $webAppData !== null && $this->verify($webAppData);
+        return null;
+    }
+
+    /**
+     * @param  array<string, string>  $pairs
+     */
+    private function isFresh(array $pairs): bool
+    {
+        $authDate = isset($pairs['auth_date']) ? (int) $pairs['auth_date'] : 0;
+
+        return $authDate > 0 && time() - $authDate <= $this->maxAge;
+    }
+
+    private function idFromJson(?string $json): ?int
+    {
+        if ($json === null || $json === '') {
+            return null;
+        }
+
+        $decoded = json_decode($json, true);
+
+        if (!is_array($decoded) || !isset($decoded['id']) || !is_numeric($decoded['id'])) {
+            return null;
+        }
+
+        return (int) $decoded['id'];
     }
 
     /**
