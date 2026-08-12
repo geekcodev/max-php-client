@@ -341,9 +341,9 @@ final class ApiClientEndpointsTest extends TestCase
     #[Test]
     public function it_creates_a_subscription(): void
     {
-        $this->http->next(fn ($request) => $this->json(['url' => 'https://example.com/hook']));
+        $this->http->next(fn ($request) => $this->json(['success' => true]));
 
-        $subscription = $this->client()->createSubscription(
+        $response = $this->client()->createSubscription(
             'https://example.com/hook',
             updateTypes: ['message_created'],
             secret: 's3cret-key',
@@ -356,7 +356,7 @@ final class ApiClientEndpointsTest extends TestCase
             '{"url":"https://example.com/hook","update_types":["message_created"],"secret":"s3cret-key"}',
             (string) $request->getBody(),
         );
-        $this->assertSame('https://example.com/hook', $subscription->url);
+        $this->assertTrue($response->success);
     }
 
     #[Test]

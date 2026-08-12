@@ -269,7 +269,7 @@ final class ApiClient
     /**
      * @param list<string>|null $updateTypes
      */
-    public function createSubscription(string $url, ?array $updateTypes = null, ?string $secret = null): Subscription
+    public function createSubscription(string $url, ?array $updateTypes = null, ?string $secret = null): SuccessResponse
     {
         if ($secret !== null && !preg_match('/^[a-zA-Z0-9_-]{5,256}$/', $secret)) {
             throw new InvalidArgumentException(
@@ -285,7 +285,7 @@ final class ApiClient
             $body['secret'] = $secret;
         }
 
-        return Subscription::fromArray($this->requestObject('POST', '/subscriptions', jsonBody: $body));
+        return SuccessResponse::fromArray($this->requestObject('POST', '/subscriptions', jsonBody: $body));
     }
 
     public function deleteSubscription(string $url): SuccessResponse
