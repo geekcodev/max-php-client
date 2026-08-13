@@ -6,6 +6,7 @@ namespace GeekCo\MaxPhpClient;
 
 use GeekCo\MaxPhpClient\Dto\AddChatMembersResult;
 use GeekCo\MaxPhpClient\Dto\BotCommand;
+use GeekCo\MaxPhpClient\Dto\BotCommandsResult;
 use GeekCo\MaxPhpClient\Dto\BotInfo;
 use GeekCo\MaxPhpClient\Dto\Chat;
 use GeekCo\MaxPhpClient\Dto\ChatAdminsResult;
@@ -76,7 +77,7 @@ final class ApiClient
     /**
      * @param list<BotCommand> $commands
      */
-    public function editBotCommands(array $commands): SuccessResponse
+    public function editBotCommands(array $commands): BotCommandsResult
     {
         if (count($commands) > self::MAX_BOT_COMMANDS) {
             throw new InvalidArgumentException(
@@ -86,7 +87,7 @@ final class ApiClient
 
         $body = ['commands' => array_map(static fn (BotCommand $command): array => $command->toArray(), $commands)];
 
-        return SuccessResponse::fromArray($this->requestObject('PATCH', '/me/commands', jsonBody: $body));
+        return BotCommandsResult::fromArray($this->requestObject('PATCH', '/me/commands', jsonBody: $body));
     }
 
     /**
@@ -116,18 +117,20 @@ final class ApiClient
         $this->acquire($chatId);
 
         return SuccessResponse::fromArray(
-            $this->requestObject('POST', sprintf('/chats/%d/actions', $chatId), jsonBody: ['type' => $action->value]),
+            $this->requestObject('POST', sprintf('/chats/%d/actions', $chatId), jsonBody: ['action' => $action->value]),
         );
     }
 
     public function getPinnedMessage(int $chatId): ?Message
     {
         $data = $this->request('GET', sprintf('/chats/%d/pin', $chatId));
-        if ($data === null) {
+        if ($data === null || !\is_array($data)) {
             return null;
         }
 
-        return Message::fromArray($this->object($data, 'pin'));
+        $messageData = $data['message'] ?? null;
+
+        return \is_array($messageData) ? Message::fromArray($messageData) : null;
     }
 
     public function pinMessage(int $chatId, PinMessageBody $body): SuccessResponse
@@ -178,12 +181,12 @@ final class ApiClient
     ): SuccessResponse {
         $this->acquire($chatId);
 
-        $body = [
+        $body = ['admins' => [[
             'user_id' => $userId,
             'permissions' => array_map(static fn (ChatAdminPermission $permission): string => $permission->value, $permissions),
-        ];
+        ]]];
         if ($alias !== null) {
-            $body['alias'] = $alias;
+            $body['admins'][0]['alias'] = $alias;
         }
 
         return SuccessResponse::fromArray(
@@ -491,17 +494,5 @@ final class ApiClient
         }
 
         return $items;
-    }
-
-    /**
-     * @return array<mixed>
-     */
-    private function object(mixed $data, string $field): array
-    {
-        if (\is_array($data) && isset($data[$field]) && \is_array($data[$field])) {
-            return $data[$field];
-        }
-
-        throw new InvalidResponseException(sprintf('Expected an object in response field "%s".', $field));
     }
 }

@@ -14,9 +14,11 @@ use GeekCo\MaxPhpClient\Dto\Callback;
 use GeekCo\MaxPhpClient\Dto\Chat;
 use GeekCo\MaxPhpClient\Dto\ChatAdmin;
 use GeekCo\MaxPhpClient\Dto\ChatAdminsResult;
+use GeekCo\MaxPhpClient\Dto\ChatIcon;
 use GeekCo\MaxPhpClient\Dto\ChatListResult;
 use GeekCo\MaxPhpClient\Dto\ChatMember;
 use GeekCo\MaxPhpClient\Dto\ChatMembersResult;
+use GeekCo\MaxPhpClient\Dto\BotCommandsResult;
 use GeekCo\MaxPhpClient\Dto\EditChatBody;
 use GeekCo\MaxPhpClient\Dto\ErrorResponse;
 use GeekCo\MaxPhpClient\Dto\FailedUserDetails;
@@ -124,11 +126,21 @@ final class DtoCoverageTest extends TestCase
     #[Test]
     public function it_roundtrips_video_info(): void
     {
-        $array = ['video_token' => 'v1', 'file_name' => 'c.mp4', 'duration' => 5, 'size' => 100, 'url' => ['mp4' => 'https://v/m.mp4']];
+        $array = [
+            'token' => 'v1',
+            'urls' => ['mp4' => 'https://v/m.mp4'],
+            'thumbnail' => ['url' => 'https://v/t.jpg', 'width' => 320, 'height' => 180],
+            'width' => 1920,
+            'height' => 1080,
+            'duration' => 5,
+        ];
         $info = $this->roundtrip($array, VideoInfo::class);
 
         $this->assertInstanceOf(VideoInfo::class, $info);
-        $this->assertSame('https://v/m.mp4', $info->url->mp4);
+        $this->assertSame('v1', $info->token);
+        $this->assertSame('https://v/m.mp4', $info->urls?->mp4);
+        $this->assertSame('https://v/t.jpg', $info->thumbnail?->url);
+        $this->assertSame(1080, $info->height);
     }
 
     #[Test]
@@ -142,7 +154,7 @@ final class DtoCoverageTest extends TestCase
             'participants_count' => 2,
             'is_public' => true,
             'title' => 'T',
-            'icon' => 'https://i.jpg',
+            'icon' => ['url' => 'https://i.jpg'],
             'owner_id' => 1,
             'participants' => [self::USER_ARRAY],
             'link' => 'https://max.ru/c/1',
@@ -159,6 +171,7 @@ final class DtoCoverageTest extends TestCase
         $this->assertSame('d', $chat->description);
         $this->assertSame(5, $chat->messagesCount);
         $this->assertSame('T', $chat->title);
+        $this->assertSame('https://i.jpg', $chat->icon?->url);
         $this->assertSame('hi', $chat->pinnedMessage?->body?->text);
     }
 
@@ -349,13 +362,15 @@ final class DtoCoverageTest extends TestCase
         $body = new NewMessageBody(
             text: 'hi',
             attachments: [new AttachmentRequest(AttachmentType::Image, token: 't')],
-            link: new NewMessageLink('reply', 'https://x', 'tk'),
+            link: new NewMessageLink('reply', 'm1', 'c1'),
             notify: true,
             format: TextFormat::Html,
         );
 
         $this->assertSame('hi', $body->toArray()['text']);
         $this->assertSame('reply', $body->toArray()['link']['type']);
+        $this->assertSame('m1', $body->toArray()['link']['mid']);
+        $this->assertSame('c1', $body->toArray()['link']['chat']);
         $this->assertSame('html', $body->toArray()['format']);
         $this->assertSame([['type' => 'image', 'payload' => ['token' => 't']]], $body->toArray()['attachments']);
     }
@@ -434,29 +449,30 @@ final class DtoCoverageTest extends TestCase
     {
         $chat = ['chat_id' => 1, 'type' => 'chat', 'status' => 'active', 'last_event_time' => 1, 'participants_count' => 1, 'is_public' => false];
         $member = [...self::USER_ARRAY, 'last_access_time' => 1, 'is_owner' => false, 'is_admin' => false, 'join_time' => 1];
-        $admin = ['user_id' => 1, 'permissions' => ['write']];
 
         $chats = ChatListResult::fromArray(['chats' => [$chat], 'marker' => 1]);
         $members = ChatMembersResult::fromArray(['members' => [$member], 'marker' => 2]);
-        $admins = ChatAdminsResult::fromArray(['admins' => [$admin], 'marker' => 3]);
+        $admins = ChatAdminsResult::fromArray(['members' => [$member], 'marker' => 3]);
 
         $this->assertSame(1, ChatListResult::fromArray($chats->toArray())->marker);
         $this->assertSame(2, ChatMembersResult::fromArray($members->toArray())->marker);
         $this->assertSame(3, ChatAdminsResult::fromArray($admins->toArray())->marker);
+        $this->assertCount(1, $admins->members);
     }
 
     #[Test]
     public function it_roundtrips_request_bodies(): void
     {
-        $recipient = new Recipient(chatId: 5);
-        $this->assertSame(['chat_id' => 5], $recipient->toArray());
+        $recipient = new Recipient(chatId: 5, chatType: 'dialog');
+        $this->assertSame(['chat_id' => 5, 'chat_type' => 'dialog'], $recipient->toArray());
+        $this->assertSame('dialog', Recipient::fromArray(['chat_id' => 5, 'chat_type' => 'dialog'])->chatType);
         $this->assertNull((new Recipient())->chatId);
 
         $pin = new PinMessageBody('m1', notify: true);
         $this->assertSame(['message_id' => 'm1', 'notify' => true], $pin->toArray());
 
-        $edit = new EditChatBody(title: 'T', icon: 'I', pin: true, notify: true);
-        $this->assertSame(['title' => 'T', 'icon' => 'I', 'pin' => true, 'notify' => true], $edit->toArray());
+        $edit = new EditChatBody(title: 'T', icon: new ChatIcon('https://i.jpg'), pin: true, notify: true);
+        $this->assertSame(['title' => 'T', 'icon' => ['url' => 'https://i.jpg'], 'pin' => true, 'notify' => true], $edit->toArray());
 
         $success = new SuccessResponse(true, 'done');
         $this->assertSame(['success' => true, 'message' => 'done'], $success->toArray());
@@ -464,8 +480,8 @@ final class DtoCoverageTest extends TestCase
         $command = new BotCommand('start', 'desc');
         $this->assertSame(['name' => 'start', 'description' => 'desc'], $command->toArray());
 
-        $link = new NewMessageLink('reply', 'https://x');
-        $this->assertSame(['type' => 'reply', 'url' => 'https://x'], $link->toArray());
+        $link = new NewMessageLink('reply', 'm1');
+        $this->assertSame(['type' => 'reply', 'mid' => 'm1'], $link->toArray());
 
         $callback = new Callback('c1', 'payload', Message::fromArray(self::MESSAGE_ARRAY));
         $this->assertSame('c1', $callback->callbackId);
@@ -512,22 +528,24 @@ final class DtoCoverageTest extends TestCase
     #[Test]
     public function it_parses_a_new_message_link(): void
     {
-        $link = NewMessageLink::fromArray(['type' => 'reply', 'url' => 'https://x', 'token' => 'tk']);
+        $link = NewMessageLink::fromArray(['type' => 'reply', 'mid' => 'm1', 'chat' => 'c1']);
 
         $this->assertSame('reply', $link->type);
-        $this->assertSame('https://x', $link->url);
-        $this->assertSame('tk', $link->token);
+        $this->assertSame('m1', $link->mid);
+        $this->assertSame('c1', $link->chat);
+        $this->assertNull(NewMessageLink::fromArray(['type' => 'reply'])->mid);
     }
 
     #[Test]
     public function it_parses_an_edit_chat_body(): void
     {
-        $body = EditChatBody::fromArray(['title' => 'T', 'icon' => 'I', 'pin' => true, 'notify' => false]);
+        $body = EditChatBody::fromArray(['title' => 'T', 'icon' => ['url' => 'https://i.jpg'], 'pin' => true, 'notify' => false]);
 
         $this->assertSame('T', $body->title);
-        $this->assertSame('I', $body->icon);
+        $this->assertSame('https://i.jpg', $body->icon?->url);
         $this->assertTrue($body->pin);
         $this->assertFalse($body->notify);
+        $this->assertNull(EditChatBody::fromArray(['title' => 'T'])->icon);
     }
 
     #[Test]
@@ -545,11 +563,33 @@ final class DtoCoverageTest extends TestCase
     }
 
     #[Test]
-    public function it_rejects_video_info_without_an_object_url(): void
+    public function it_roundtrips_bot_commands_result(): void
+    {
+        $result = $this->roundtrip(
+            ['commands' => [['name' => 'start', 'description' => 'Start']]],
+            BotCommandsResult::class,
+        );
+
+        $this->assertInstanceOf(BotCommandsResult::class, $result);
+        $this->assertSame('start', $result->commands[0]->name);
+        $this->assertNull(BotCommandsResult::fromArray([])->commands);
+    }
+
+    #[Test]
+    public function it_roundtrips_a_chat_icon(): void
+    {
+        $icon = ChatIcon::fromArray(['url' => 'https://i.jpg', 'payload' => 'p']);
+
+        $this->assertSame(['url' => 'https://i.jpg', 'payload' => 'p'], $icon->toArray());
+        $this->assertSame('https://i.jpg', ChatIcon::fromArray(['url' => 'https://i.jpg'])->url);
+    }
+
+    #[Test]
+    public function it_rejects_video_info_without_a_token(): void
     {
         $this->expectException(InvalidResponseException::class);
 
-        VideoInfo::fromArray(['url' => 'not-an-object']);
+        VideoInfo::fromArray(['width' => 1]);
     }
 
     #[Test]

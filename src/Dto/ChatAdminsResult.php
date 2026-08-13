@@ -9,10 +9,10 @@ use GeekCo\MaxPhpClient\Internal\Json;
 readonly class ChatAdminsResult
 {
     /**
-     * @param list<ChatAdmin> $admins
+     * @param list<ChatMember> $members
      */
     public function __construct(
-        public array $admins,
+        public array $members,
         public ?int $marker = null,
     ) {
     }
@@ -20,7 +20,7 @@ readonly class ChatAdminsResult
     public static function fromArray(array $data): self
     {
         return new self(
-            admins: Json::map($data, 'admins', static fn (mixed $item): ChatAdmin => ChatAdmin::fromArray((array) $item)) ?? [],
+            members: Json::map($data, 'members', static fn (mixed $item): ChatMember => ChatMember::fromArray((array) $item)) ?? [],
             marker: Json::int($data, 'marker'),
         );
     }
@@ -28,7 +28,7 @@ readonly class ChatAdminsResult
     public function toArray(): array
     {
         return array_filter([
-            'admins' => array_map(static fn (ChatAdmin $admin): array => $admin->toArray(), $this->admins),
+            'members' => array_map(static fn (ChatMember $member): array => $member->toArray(), $this->members),
             'marker' => $this->marker,
         ], static fn (mixed $value): bool => $value !== null);
     }

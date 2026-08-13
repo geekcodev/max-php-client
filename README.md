@@ -118,9 +118,11 @@ php -S 0.0.0.0:8080 examples/echo-bot-webhook.php
 | `examples/verify-webapp-data.php`    | Верификация стартовых данных мини-приложения (`WebAppDataValidator`)               |
 
 **Как определить пользователя и отправить ему сообщение.** Бот получает `user_id` и `chat_id` диалога из любого апдейта
-(`$update->user->userId`, `$update->chatId`). Сообщение пользователю отправляется через `Recipient(userId: ...)`;
-подробная информация о пользователе — через `getChatMembers($chatId, [$userId])` (аватар, описание, роль админа) или
-`getChat($chatId)->dialogWithUser`.
+(`$update->user?->userId`, `$update->chatId`). Для событий сообщений и колбэков эти поля берутся из
+`message.sender`/`message.recipient`, если их нет на верхнем уровне (см. раздел «Вебхуки»). Сообщение пользователю
+отправляется через `Recipient(userId: ...)`; подробная информация о пользователе — через
+`getChatMembers($chatId, [$userId])`
+(аватар, описание, роль админа) или `getChat($chatId)->dialogWithUser`.
 
 ## Ретраи
 
@@ -181,6 +183,12 @@ if ($updates instanceof GeekCo\MaxPhpClient\Dto\Update) {
     $updates = [$updates];
 }
 ```
+
+Для событий `message_created`/`message_edited`/`message_callback` поля `user` и `chat_id` могут отсутствовать на верхнем
+уровне — они автоматически берутся из `message.sender`/`message.recipient` (и `callback.message`). Объект
+`Update` дополнительно содержит поля `user_locale`, `title`, `payload`, `muted_until`, `message_id`, `user_id`,
+`inviter_id`, `admin_id` — они заполняются для соответствующих типов событий, для остальных равны `null`.
+`user` (объект `User`) может быть `null` (например, для `message_removed`).
 
 Создание подписки:
 
@@ -337,3 +345,25 @@ MAX_API_TOKEN=<token> docker run --rm --network host \
 ## Спецификация
 
 OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
+
+## История изменений
+
+### v1.0.3 — синхронизация с max-openapi, фикс парсинга Update
+
+**Ломающие изменения** (см. `RELEASE_NOTES_v1.0.3.md`):
+
+- `ApiClient::getPinnedMessage()`: ответ читается из поля `message` (было `pin`).
+- `ApiClient::sendBotAction()`: тело `{"action": ...}` (было `{"type": ...}`).
+- `ApiClient::addChatAdmin()`: тело `{"admins": [{...}]}` (было `{...}` напрямую).
+- `ApiClient::getChatAdmins()`: `ChatAdminsResult::$admins` (тип `ChatAdmin`) → `$members` (тип `ChatMember`).
+- `ApiClient::editBotCommands()`: возвращает `BotCommandsResult` вместо `SuccessResponse`.
+- `VideoInfo`: поля `token, urls, thumbnail, width, height, duration` (было `video_token, file_name, size, url`).
+- `NewMessageLink`: поля `type, mid, chat` (было `type, url, token`).
+- `Chat::$icon` и `EditChatBody::$icon`: теперь `Image`/`ChatIcon` (объект `{url}` / `{url, payload}`).
+
+**Исправления:**
+
+- `Update::fromArray()`: `user`/`chat_id` фолбэки из `message.sender`/`message.recipient` и `callback.message`;
+  `Update::$user` теперь nullable; добавлены поля `user_locale`, `title`, `payload`, `muted_until`, `message_id`,
+  `user_id`, `inviter_id`, `admin_id`.
+- `Recipient::$chatType` — новое поле `chat_type`.
