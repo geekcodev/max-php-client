@@ -6,30 +6,27 @@ namespace GeekCo\MaxPhpClient\Dto;
 
 use GeekCo\MaxPhpClient\Internal\Json;
 
-readonly class NewMessageLink
+readonly class ChatIcon
 {
     public function __construct(
-        public string $type,
-        public ?string $mid = null,
-        public ?string $chat = null,
+        public string $url,
+        public ?string $payload = null,
     ) {
     }
 
     public static function fromArray(array $data): self
     {
         return new self(
-            type: Json::requiredString($data, 'type'),
-            mid: Json::string($data, 'mid'),
-            chat: Json::string($data, 'chat'),
+            url: Json::requiredString($data, 'url'),
+            payload: Json::string($data, 'payload'),
         );
     }
 
     public function toArray(): array
     {
         return array_filter([
-            'type' => $this->type,
-            'mid' => $this->mid,
-            'chat' => $this->chat,
+            'url' => $this->url,
+            'payload' => $this->payload,
         ], static fn (mixed $value): bool => $value !== null);
     }
 }

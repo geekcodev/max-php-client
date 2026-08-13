@@ -71,7 +71,7 @@ phpstan.neon                  level max
 | Upload      | `Uploader`                                        | Multipart-загрузка медиа (требует `ext-fileinfo`)                                  |
 | Security    | `ContactVerifier`, `WebAppDataValidator`          | Верификация контакта по кнопке `request_contact`; стартовых данных мини-приложения |
 | Internal    | `Internal\Json`                                   | Единственное место работы с JSON (кодирование/декодирование с исключениями)        |
-| Dto         | `src/Dto/*` (36 классов)                          | Типизированные модели запросов и ответов                                           |
+| Dto         | `src/Dto/*` (44 класса)                           | Типизированные модели запросов и ответов                                           |
 | Enum        | `src/Enum/*` (8)                                  | Строго типизированные значения                                                     |
 | Exception   | `src/Exception/*` (7)                             | Иерархия типизированных ошибок                                                     |
 
@@ -88,7 +88,9 @@ phpstan.neon                  level max
   foreach ($updates as $update) { ... }
   ```
   Ответы эндпоинта: неверный секрет → HTTP 401, невалидный body → HTTP 400, успех → HTTP 200 (обязателен в течение 30
-  сек, иначе API повторит доставку).
+  сек, иначе API повторит доставку). Нюанс полей: `Update::$user` — nullable; для `message_created`/`message_edited`/
+  `message_callback` `user` и `chat_id` берутся из `message.sender`/`message.recipient` (и `callback.message`), если их
+  нет на верхнем уровне.
 - **`RetryStrategy`** — по умолчанию ретраит: 429, 5xx, сетевые сбои, `attachment.not.ready`; только идемпотентные
   методы; число попыток и задержки настраиваются.
 - **`RateLimiter`** — дефолт 2 запроса/сек (лимит API на диалог/чат/канал).
@@ -316,13 +318,15 @@ source .env && docker run --rm --network host \
 - `AttachmentRequest` (type, payload{token?, url?, rows?})
 - `InlineKeyboardButton` (type, text, payload?, url?, intent?, app_data?) — макс 210 кнопок / 30 рядов / 7 в ряду (3 для
   link/open_app/request_geo_location/request_contact)
-- `Update` (update_type, timestamp, chat_id, user, is_channel?, message?, callback{callback_id, payload?, message}?)
+- `Update` (update_type, timestamp, chat_id, user|null, is_channel?, message?, callback{callback_id, payload?,
+  message}?, user_locale?, title?, payload?, muted_until?, message_id?, user_id?, inviter_id?, admin_id?)
 - `Subscription` (url, update_types?)
 - `ErrorResponse` (code, message, error?)
 
 ## 10. Частые ошибки (gotchas)
 
-1. `WebhookHandler::decode()` возвращает `Update|list<Update>` — **не** итерировать без `instanceof`-проверки.
+1. `WebhookHandler::decode()` возвращает `Update|list<Update>` — **не** итерировать без `instanceof`-проверки;
+   `Update::$user` **nullable** (для сообщений/колбэков `user` и `chat_id` берутся из `message.sender`/`recipient`).
 2. Токен — без `Bearer`; только заголовок, не query.
 3. `attachment.not.ready` — загруженное вложение ещё не готово: ждать и ретраить.
 4. `join_time` — секунды; остальные timestamp — миллисекунды.

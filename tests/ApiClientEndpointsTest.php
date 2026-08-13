@@ -71,7 +71,9 @@ final class ApiClientEndpointsTest extends TestCase
     #[Test]
     public function it_edits_bot_commands(): void
     {
-        $this->http->next(fn ($request) => $this->json(['success' => true]));
+        $this->http->next(fn ($request) => $this->json(['commands' => [
+            ['name' => 'start', 'description' => 'Start the bot'],
+        ]]));
 
         $result = $this->client()->editBotCommands([
             new BotCommand('start', 'Start the bot'),
@@ -85,7 +87,7 @@ final class ApiClientEndpointsTest extends TestCase
             '{"commands":[{"name":"start","description":"Start the bot"},{"name":"help","description":"Show help"}]}',
             (string) $request->getBody(),
         );
-        $this->assertTrue($result->success);
+        $this->assertSame('start', $result->commands[0]->name);
     }
 
     #[Test]
@@ -169,14 +171,14 @@ final class ApiClientEndpointsTest extends TestCase
         $request = $this->http->requests[0];
         $this->assertSame('POST', $request->getMethod());
         $this->assertSame('/chats/5/actions', $request->getUri()->getPath());
-        $this->assertSame('{"type":"typing_on"}', (string) $request->getBody());
+        $this->assertSame('{"action":"typing_on"}', (string) $request->getBody());
         $this->assertTrue($result->success);
     }
 
     #[Test]
     public function it_gets_the_pinned_message(): void
     {
-        $this->http->next(fn ($request) => $this->json(['pin' => [
+        $this->http->next(fn ($request) => $this->json(['message' => [
             'recipient' => ['chat_id' => 5],
             'timestamp' => 1,
             'body' => ['mid' => 'm1', 'seq' => 1, 'text' => 'pinned'],
@@ -192,6 +194,18 @@ final class ApiClientEndpointsTest extends TestCase
     public function it_returns_null_when_there_is_no_pinned_message(): void
     {
         $this->http->next(fn ($request) => $this->factory->createResponse(200));
+
+        $this->assertNull($this->client()->getPinnedMessage(5));
+
+        $this->http->next(fn ($request) => $this->json(['message' => null]));
+
+        $this->assertNull($this->client()->getPinnedMessage(5));
+    }
+
+    #[Test]
+    public function it_returns_null_for_a_pinned_response_without_a_message_field(): void
+    {
+        $this->http->next(fn ($request) => $this->json([]));
 
         $this->assertNull($this->client()->getPinnedMessage(5));
     }
@@ -247,16 +261,15 @@ final class ApiClientEndpointsTest extends TestCase
     #[Test]
     public function it_gets_chat_admins(): void
     {
-        $this->http->next(fn ($request) => $this->json(['admins' => [
-            ['user_id' => 2, 'permissions' => ['write', 'pin_message'], 'alias' => 'Admin'],
-        ], 'marker' => 7]));
+        $this->http->next(fn ($request) => $this->json(['members' => [self::CHAT_MEMBER], 'marker' => 7]));
 
         $result = $this->client()->getChatAdmins(5, marker: 1, count: 10);
 
         $request = $this->http->requests[0];
         $this->assertSame('/chats/5/members/admins', $request->getUri()->getPath());
         $this->assertSame('marker=1&count=10', $request->getUri()->getQuery());
-        $this->assertSame([ChatAdminPermission::Write, ChatAdminPermission::PinMessage], $result->admins[0]->permissions);
+        $this->assertSame(2, $result->members[0]->userId);
+        $this->assertTrue($result->members[0]->isAdmin);
         $this->assertSame(7, $result->marker);
     }
 
@@ -270,7 +283,7 @@ final class ApiClientEndpointsTest extends TestCase
         $request = $this->http->requests[0];
         $this->assertSame('POST', $request->getMethod());
         $this->assertSame('/chats/5/members/admins', $request->getUri()->getPath());
-        $this->assertSame('{"user_id":2,"permissions":["write"],"alias":"Moderator"}', (string) $request->getBody());
+        $this->assertSame('{"admins":[{"user_id":2,"permissions":["write"],"alias":"Moderator"}]}', (string) $request->getBody());
     }
 
     #[Test]
@@ -438,18 +451,23 @@ final class ApiClientEndpointsTest extends TestCase
     public function it_gets_video_info(): void
     {
         $this->http->next(fn ($request) => $this->json([
-            'video_token' => 'v1',
-            'file_name' => 'clip.mp4',
+            'token' => 'v1',
+            'urls' => ['mp4' => 'https://vu.okcdn.ru/clip.mp4', 'preview' => 'https://vu.okcdn.ru/clip.jpg'],
+            'thumbnail' => ['url' => 'https://vu.okcdn.ru/t.jpg', 'width' => 320, 'height' => 180],
+            'width' => 1920,
+            'height' => 1080,
             'duration' => 12,
-            'size' => 1024,
-            'url' => ['mp4' => 'https://vu.okcdn.ru/clip.mp4'],
         ]));
 
         $info = $this->client()->getVideoInfo('v1');
 
         $this->assertSame('/videos/v1', $this->http->requests[0]->getUri()->getPath());
-        $this->assertSame('clip.mp4', $info->fileName);
-        $this->assertSame('https://vu.okcdn.ru/clip.mp4', $info->url->mp4);
+        $this->assertSame('v1', $info->token);
+        $this->assertSame('https://vu.okcdn.ru/clip.mp4', $info->urls?->mp4);
+        $this->assertSame('https://vu.okcdn.ru/t.jpg', $info->thumbnail?->url);
+        $this->assertSame(1920, $info->width);
+        $this->assertSame(1080, $info->height);
+        $this->assertSame(12, $info->duration);
     }
 
     #[Test]
@@ -553,16 +571,6 @@ final class ApiClientEndpointsTest extends TestCase
         $this->expectException(\GeekCo\MaxPhpClient\Exception\InvalidResponseException::class);
 
         $this->client()->getMe();
-    }
-
-    #[Test]
-    public function it_rejects_a_pinned_response_without_the_pin_field(): void
-    {
-        $this->http->next(fn ($request) => $this->json([]));
-
-        $this->expectException(\GeekCo\MaxPhpClient\Exception\InvalidResponseException::class);
-
-        $this->client()->getPinnedMessage(5);
     }
 
     #[Test]

@@ -22,7 +22,7 @@ readonly class Chat
         public int $participantsCount,
         public bool $isPublic,
         public ?string $title = null,
-        public ?string $icon = null,
+        public ?Image $icon = null,
         public ?int $ownerId = null,
         public ?array $participants = null,
         public ?string $link = null,
@@ -35,6 +35,7 @@ readonly class Chat
 
     public static function fromArray(array $data): self
     {
+        $iconData = $data['icon'] ?? null;
         $dialogWithUserData = $data['dialog_with_user'] ?? null;
         $pinnedMessageData = $data['pinned_message'] ?? null;
 
@@ -48,7 +49,7 @@ readonly class Chat
             participantsCount: Json::requiredInt($data, 'participants_count'),
             isPublic: Json::requiredBool($data, 'is_public'),
             title: Json::string($data, 'title'),
-            icon: Json::string($data, 'icon'),
+            icon: \is_array($iconData) ? Image::fromArray($iconData) : null,
             ownerId: Json::int($data, 'owner_id'),
             participants: Json::map($data, 'participants', static fn (mixed $item): User => User::fromArray((array) $item)),
             link: Json::string($data, 'link'),
@@ -69,7 +70,7 @@ readonly class Chat
             'participants_count' => $this->participantsCount,
             'is_public' => $this->isPublic,
             'title' => $this->title,
-            'icon' => $this->icon,
+            'icon' => $this->icon?->toArray(),
             'owner_id' => $this->ownerId,
             'participants' => $this->participants === null
                 ? null
