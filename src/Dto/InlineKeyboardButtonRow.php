@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Dto;
 
-use GeekCo\MaxPhpClient\Internal\Json;
-
 readonly class InlineKeyboardButtonRow
 {
     /**
@@ -18,18 +16,20 @@ readonly class InlineKeyboardButtonRow
 
     public static function fromArray(array $data): self
     {
+        $buttons = isset($data['buttons']) && \is_array($data['buttons'])
+            ? $data['buttons']
+            : $data;
+
         return new self(
-            buttons: Json::map($data, 'buttons', static fn (mixed $item): InlineKeyboardButton => InlineKeyboardButton::fromArray((array) $item)) ?? [],
+            buttons: array_values(array_map(static fn (mixed $item): InlineKeyboardButton => InlineKeyboardButton::fromArray((array) $item), $buttons)),
         );
     }
 
     public function toArray(): array
     {
-        return [
-            'buttons' => array_map(
-                static fn (InlineKeyboardButton $button): array => $button->toArray(),
-                $this->buttons,
-            ),
-        ];
+        return array_map(
+            static fn (InlineKeyboardButton $button): array => $button->toArray(),
+            $this->buttons,
+        );
     }
 }

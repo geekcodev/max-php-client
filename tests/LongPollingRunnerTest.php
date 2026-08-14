@@ -33,13 +33,13 @@ final class LongPollingRunnerTest extends TestCase
             'timestamp' => 10,
             'chat_id' => 1,
             'user' => ['user_id' => 2, 'first_name' => 'A', 'is_bot' => false, 'last_activity_time' => 10],
-        ]]]));
+        ]], 'marker' => 50]));
         $http->next(fn ($request) => $this->response($factory, ['updates' => [[
             'update_type' => 'message_created',
             'timestamp' => 20,
             'chat_id' => 1,
             'user' => ['user_id' => 2, 'first_name' => 'A', 'is_bot' => false, 'last_activity_time' => 10],
-        ]]]));
+        ]], 'marker' => 60]));
         ;
 
         $seen = [];
@@ -52,7 +52,7 @@ final class LongPollingRunnerTest extends TestCase
         $marker = $runner->run();
 
         $this->assertSame([10, 20], $seen);
-        $this->assertSame(20, $marker);
+        $this->assertSame(60, $marker);
     }
 
     #[Test]
@@ -98,7 +98,7 @@ final class LongPollingRunnerTest extends TestCase
             'timestamp' => 30,
             'chat_id' => 1,
             'user' => ['user_id' => 2, 'first_name' => 'A', 'is_bot' => false, 'last_activity_time' => 10],
-        ]]]));
+        ]], 'marker' => 30]));
 
         $seen = [];
         $runner = new LongPollingRunner(

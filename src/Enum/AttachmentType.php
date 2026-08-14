@@ -10,6 +10,7 @@ enum AttachmentType: string
     case Video = 'video';
     case Audio = 'audio';
     case File = 'file';
+    case Contact = 'contact';
     case Sticker = 'sticker';
     case InlineKeyboard = 'inline_keyboard';
     case Location = 'location';

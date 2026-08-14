@@ -11,7 +11,7 @@ readonly class EditChatBody
     public function __construct(
         public ?string $title = null,
         public ?ChatIcon $icon = null,
-        public ?bool $pin = null,
+        public ?string $pin = null,
         public ?bool $notify = null,
     ) {
     }
@@ -19,7 +19,7 @@ readonly class EditChatBody
     public static function create(
         ?string $title = null,
         ?ChatIcon $icon = null,
-        ?bool $pin = null,
+        ?string $pin = null,
         ?bool $notify = null,
     ): self {
         return new self(
@@ -37,7 +37,7 @@ readonly class EditChatBody
         return new self(
             title: Json::string($data, 'title'),
             icon: \is_array($iconData) ? ChatIcon::fromArray($iconData) : null,
-            pin: Json::bool($data, 'pin'),
+            pin: Json::string($data, 'pin'),
             notify: Json::bool($data, 'notify'),
         );
     }

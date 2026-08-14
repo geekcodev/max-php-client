@@ -10,7 +10,7 @@ readonly class FailedUserDetails
 {
     public function __construct(
         public int $userId,
-        public string $reason,
+        public string $error,
     ) {
     }
 
@@ -18,7 +18,7 @@ readonly class FailedUserDetails
     {
         return new self(
             userId: Json::requiredInt($data, 'user_id'),
-            reason: Json::requiredString($data, 'reason'),
+            error: Json::requiredString($data, 'error'),
         );
     }
 
@@ -26,7 +26,7 @@ readonly class FailedUserDetails
     {
         return [
             'user_id' => $this->userId,
-            'reason' => $this->reason,
+            'error' => $this->error,
         ];
     }
 }

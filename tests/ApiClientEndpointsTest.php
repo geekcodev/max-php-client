@@ -317,7 +317,7 @@ final class ApiClientEndpointsTest extends TestCase
         $this->http->next(fn ($request) => $this->json([
             'success' => true,
             'failed_user_ids' => [5],
-            'details' => [['user_id' => 5, 'reason' => 'blocked']],
+            'failed_user_details' => [['user_id' => 5, 'error' => 'blocked']],
         ]));
 
         $result = $this->client()->addChatMembers(5, [2, 3, 5]);
@@ -327,7 +327,7 @@ final class ApiClientEndpointsTest extends TestCase
         $this->assertSame('/chats/5/members', $request->getUri()->getPath());
         $this->assertSame('{"user_ids":[2,3,5]}', (string) $request->getBody());
         $this->assertSame([5], $result->failedUserIds);
-        $this->assertSame('blocked', $result->details[0]->reason);
+        $this->assertSame('blocked', $result->failedUserDetails[0]->error);
     }
 
     #[Test]
@@ -396,20 +396,16 @@ final class ApiClientEndpointsTest extends TestCase
     #[Test]
     public function it_edits_a_message(): void
     {
-        $this->http->next(fn ($request) => $this->json([
-            'recipient' => ['chat_id' => 5],
-            'timestamp' => 1,
-            'body' => ['mid' => 'm1', 'seq' => 1, 'text' => 'edited'],
-        ]));
+        $this->http->next(fn ($request) => $this->json(['success' => true]));
 
-        $message = $this->client()->editMessage('m1', NewMessageBody::create(text: 'edited'));
+        $result = $this->client()->editMessage('m1', NewMessageBody::create(text: 'edited'));
 
         $request = $this->http->requests[0];
         $this->assertSame('PUT', $request->getMethod());
         $this->assertSame('/messages', $request->getUri()->getPath());
         $this->assertSame('message_id=m1', $request->getUri()->getQuery());
         $this->assertSame('{"text":"edited"}', (string) $request->getBody());
-        $this->assertSame('edited', $message->body?->text);
+        $this->assertTrue($result->success);
     }
 
     #[Test]
@@ -583,13 +579,29 @@ final class ApiClientEndpointsTest extends TestCase
             'user' => self::USER,
         ]], 'marker' => 9]));
 
-        $result = $this->client()->getUpdates(limit: 5, timeout: 30, marker: 1, types: ['message_created', 'message_edited']);
+        $result = $this->client()->getUpdatesBatch(limit: 5, timeout: 30, marker: 1, types: ['message_created', 'message_edited']);
 
         $request = $this->http->requests[0];
         $this->assertSame('/updates', $request->getUri()->getPath());
         $this->assertSame('limit=5&timeout=30&marker=1&types=message_created%2Cmessage_edited', $request->getUri()->getQuery());
+        $this->assertSame('message_created', $result->updates[0]->updateType->value);
+        $this->assertSame(5, $result->updates[0]->chatId);
+        $this->assertSame(9, $result->marker);
+    }
+
+    #[Test]
+    public function it_gets_updates_as_a_bare_list(): void
+    {
+        $this->http->next(fn ($request) => $this->json(['updates' => [[
+            'update_type' => 'message_created',
+            'timestamp' => 1,
+            'chat_id' => 5,
+            'user' => self::USER,
+        ]]]));
+
+        $result = $this->client()->getUpdates(limit: 5);
+
         $this->assertSame('message_created', $result[0]->updateType->value);
-        $this->assertSame(5, $result[0]->chatId);
     }
 
     #[Test]
@@ -612,11 +624,11 @@ final class ApiClientEndpointsTest extends TestCase
     #[Test]
     public function it_sends_a_message(): void
     {
-        $this->http->next(fn ($request) => $this->json([
+        $this->http->next(fn ($request) => $this->json(['message' => [
             'recipient' => ['chat_id' => 5],
             'timestamp' => 1,
             'body' => ['mid' => 'm1', 'seq' => 1, 'text' => 'hi'],
-        ]));
+        ]]));
 
         $recipient = new Recipient(chatId: 5);
         $message = $this->client()->sendMessage($recipient, NewMessageBody::create(text: 'hi'), disableLinkPreview: true);
@@ -627,6 +639,16 @@ final class ApiClientEndpointsTest extends TestCase
         $this->assertSame('chat_id=5&disable_link_preview=1', $request->getUri()->getQuery());
         $this->assertSame('{"text":"hi"}', (string) $request->getBody());
         $this->assertSame('hi', $message->body?->text);
+    }
+
+    #[Test]
+    public function it_rejects_a_send_message_response_without_a_message_field(): void
+    {
+        $this->http->next(fn ($request) => $this->json([]));
+
+        $this->expectException(\GeekCo\MaxPhpClient\Exception\InvalidResponseException::class);
+
+        $this->client()->sendMessage(new Recipient(chatId: 5), NewMessageBody::create(text: 'hi'));
     }
 
     #[Test]
