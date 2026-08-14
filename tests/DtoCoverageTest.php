@@ -284,6 +284,31 @@ final class DtoCoverageTest extends TestCase
     }
 
     #[Test]
+    public function it_roundtrips_an_open_app_button(): void
+    {
+        $button = new InlineKeyboardButton(
+            ButtonType::OpenApp,
+            'Открыть приложение',
+            webApp: 'id616301431999_bot',
+            payload: 'start=chat',
+            contactId: 5,
+        );
+
+        $this->assertSame([
+            'type' => 'open_app',
+            'text' => 'Открыть приложение',
+            'payload' => 'start=chat',
+            'web_app' => 'id616301431999_bot',
+            'contact_id' => 5,
+        ], $button->toArray());
+
+        $parsed = InlineKeyboardButton::fromArray($button->toArray());
+        $this->assertSame('id616301431999_bot', $parsed->webApp);
+        $this->assertSame(5, $parsed->contactId);
+        $this->assertNull(InlineKeyboardButton::fromArray(['type' => 'open_app', 'text' => 'X'])->webApp);
+    }
+
+    #[Test]
     public function it_roundtrips_an_attachment_request_with_rows(): void
     {
         $row = new InlineKeyboardButtonRow([new InlineKeyboardButton(ButtonType::Callback, 'Go', payload: 'p')]);

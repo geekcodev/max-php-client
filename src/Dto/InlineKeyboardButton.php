@@ -15,7 +15,8 @@ readonly class InlineKeyboardButton
         public ?string $payload = null,
         public ?string $url = null,
         public ?string $intent = null,
-        public ?string $appData = null,
+        public ?string $webApp = null,
+        public ?int $contactId = null,
     ) {
     }
 
@@ -28,7 +29,8 @@ readonly class InlineKeyboardButton
             payload: Json::string($data, 'payload'),
             url: Json::string($data, 'url'),
             intent: Json::string($data, 'intent'),
-            appData: Json::string($data, 'app_data'),
+            webApp: Json::string($data, 'web_app'),
+            contactId: Json::int($data, 'contact_id'),
         );
     }
 
@@ -40,7 +42,8 @@ readonly class InlineKeyboardButton
             'payload' => $this->payload,
             'url' => $this->url,
             'intent' => $this->intent,
-            'app_data' => $this->appData,
+            'web_app' => $this->webApp,
+            'contact_id' => $this->contactId,
         ], static fn (mixed $value): bool => $value !== null);
     }
 }
