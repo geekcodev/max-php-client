@@ -29,7 +29,7 @@ final class LongPollingRunner
     {
         while (true) {
             try {
-                $updates = $this->api->getUpdates($this->limit, $this->timeout, $marker);
+                $batch = $this->api->getUpdatesBatch($this->limit, $this->timeout, $marker);
             } catch (MaxApiException $e) {
                 if ($this->breakOnFailure) {
                     throw $e;
@@ -38,13 +38,13 @@ final class LongPollingRunner
                 continue;
             }
 
-            foreach ($updates as $update) {
-                $marker = max($marker ?? 0, $update->timestamp);
-
+            foreach ($batch->updates as $update) {
                 if (!($this->handler)($update)) {
-                    return $marker;
+                    return $batch->marker ?? $marker ?? 0;
                 }
             }
+
+            $marker = $batch->marker ?? $marker;
         }
     }
 }

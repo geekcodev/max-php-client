@@ -55,12 +55,12 @@ final class ApiClientTest extends TestCase
     #[Test]
     public function it_encodes_json_body_and_query(): void
     {
-        $this->http->next(fn ($request) => $this->json([
+        $this->http->next(fn ($request) => $this->json(['message' => [
             'sender' => null,
             'recipient' => ['chat_id' => 42],
             'timestamp' => 1,
             'body' => ['mid' => 'm1', 'seq' => 1, 'text' => 'hello'],
-        ]));
+        ]]));
 
         $this->client()->sendMessage(new Recipient(chatId: 42), NewMessageBody::create(text: 'hello'));
 

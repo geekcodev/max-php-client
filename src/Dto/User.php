@@ -14,7 +14,7 @@ readonly class User
         public ?string $lastName,
         public ?string $username,
         public bool $isBot,
-        public int $lastActivityTime,
+        public ?int $lastActivityTime = null,
         public ?string $name = null,
     ) {
     }
@@ -27,7 +27,7 @@ readonly class User
             lastName: Json::string($data, 'last_name'),
             username: Json::string($data, 'username'),
             isBot: Json::requiredBool($data, 'is_bot'),
-            lastActivityTime: Json::requiredInt($data, 'last_activity_time'),
+            lastActivityTime: Json::int($data, 'last_activity_time'),
             name: Json::string($data, 'name'),
         );
     }

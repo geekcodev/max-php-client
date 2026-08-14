@@ -10,12 +10,12 @@ readonly class AddChatMembersResult
 {
     /**
      * @param list<int>|null $failedUserIds
-     * @param list<FailedUserDetails>|null $details
+     * @param list<FailedUserDetails>|null $failedUserDetails
      */
     public function __construct(
         public ?bool $success = null,
         public ?array $failedUserIds = null,
-        public ?array $details = null,
+        public ?array $failedUserDetails = null,
     ) {
     }
 
@@ -24,7 +24,7 @@ readonly class AddChatMembersResult
         return new self(
             success: Json::bool($data, 'success'),
             failedUserIds: Json::arrayOfInts($data, 'failed_user_ids'),
-            details: Json::map($data, 'details', static fn (mixed $item): FailedUserDetails => FailedUserDetails::fromArray((array) $item)),
+            failedUserDetails: Json::map($data, 'failed_user_details', static fn (mixed $item): FailedUserDetails => FailedUserDetails::fromArray((array) $item)),
         );
     }
 
@@ -33,9 +33,9 @@ readonly class AddChatMembersResult
         return array_filter([
             'success' => $this->success,
             'failed_user_ids' => $this->failedUserIds,
-            'details' => $this->details === null
+            'failed_user_details' => $this->failedUserDetails === null
                 ? null
-                : array_map(static fn (FailedUserDetails $details): array => $details->toArray(), $this->details),
+                : array_map(static fn (FailedUserDetails $details): array => $details->toArray(), $this->failedUserDetails),
         ], static fn (mixed $value): bool => $value !== null);
     }
 }

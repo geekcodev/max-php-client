@@ -11,7 +11,7 @@ use GeekCo\MaxPhpClient\Internal\Json;
 readonly class Attachment
 {
     /**
-     * @param ImageAttachmentPayload|VideoAttachmentPayload|AudioAttachmentPayload|FileAttachmentPayload|LocationAttachmentPayload|InlineKeyboardAttachmentPayload|PhotoAttachmentPayload|array<mixed>|null $payload
+     * @param ImageAttachmentPayload|VideoAttachmentPayload|AudioAttachmentPayload|FileAttachmentPayload|ContactAttachmentPayload|LocationAttachmentPayload|InlineKeyboardAttachmentPayload|PhotoAttachmentPayload|array<mixed>|null $payload
      */
     public function __construct(
         public AttachmentType $type,
@@ -33,7 +33,7 @@ readonly class Attachment
     }
 
     /**
-     * @return ImageAttachmentPayload|VideoAttachmentPayload|AudioAttachmentPayload|FileAttachmentPayload|LocationAttachmentPayload|InlineKeyboardAttachmentPayload|PhotoAttachmentPayload|array<mixed>
+     * @return ImageAttachmentPayload|VideoAttachmentPayload|AudioAttachmentPayload|FileAttachmentPayload|ContactAttachmentPayload|LocationAttachmentPayload|InlineKeyboardAttachmentPayload|PhotoAttachmentPayload|array<mixed>
      */
     public static function payloadFromArray(AttachmentType $type, array $data): object|array
     {
@@ -42,6 +42,7 @@ readonly class Attachment
             AttachmentType::Video => VideoAttachmentPayload::fromArray($data),
             AttachmentType::Audio => AudioAttachmentPayload::fromArray($data),
             AttachmentType::File => FileAttachmentPayload::fromArray($data),
+            AttachmentType::Contact => ContactAttachmentPayload::fromArray($data),
             AttachmentType::InlineKeyboard => InlineKeyboardAttachmentPayload::fromArray($data),
             AttachmentType::Location => LocationAttachmentPayload::fromArray($data),
             AttachmentType::Sticker, AttachmentType::Share => $data,

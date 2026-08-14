@@ -21,6 +21,7 @@ use GeekCo\MaxPhpClient\Dto\Recipient;
 use GeekCo\MaxPhpClient\Dto\Subscription;
 use GeekCo\MaxPhpClient\Dto\SuccessResponse;
 use GeekCo\MaxPhpClient\Dto\Update;
+use GeekCo\MaxPhpClient\Dto\UpdatesResult;
 use GeekCo\MaxPhpClient\Dto\UploadResult;
 use GeekCo\MaxPhpClient\Dto\VideoInfo;
 use GeekCo\MaxPhpClient\Enum\ChatAdminPermission;
@@ -28,6 +29,7 @@ use GeekCo\MaxPhpClient\Enum\SenderAction;
 use GeekCo\MaxPhpClient\Enum\UploadType;
 use GeekCo\MaxPhpClient\Exception\InvalidArgumentException;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
+use GeekCo\MaxPhpClient\Internal\Json;
 use GeekCo\MaxPhpClient\RateLimit\RateLimiter;
 use GeekCo\MaxPhpClient\Retry\RetryStrategy;
 use GeekCo\MaxPhpClient\Transport\HttpClient;
@@ -305,6 +307,14 @@ final class ApiClient
      */
     public function getUpdates(?int $limit = null, ?int $timeout = null, ?int $marker = null, ?array $types = null): array
     {
+        return $this->getUpdatesBatch($limit, $timeout, $marker, $types)->updates;
+    }
+
+    /**
+     * @param list<string>|null $types
+     */
+    public function getUpdatesBatch(?int $limit = null, ?int $timeout = null, ?int $marker = null, ?array $types = null): UpdatesResult
+    {
         if ($limit !== null && ($limit < 1 || $limit > 1000)) {
             throw new InvalidArgumentException('limit must be between 1 and 1000.');
         }
@@ -319,11 +329,14 @@ final class ApiClient
             'types' => $types !== null ? implode(',', $types) : null,
         ]);
 
-        return $this->listFromField(
-            $this->request('GET', '/updates', $query),
-            'updates',
-            static fn (array $item): Update => Update::fromArray($item),
-        );
+        $data = $this->request('GET', '/updates', $query);
+        if (!\is_array($data)) {
+            throw new InvalidResponseException('Expected a JSON object in the response.');
+        }
+
+        $updates = $this->listFromField($data, 'updates', static fn (array $item): Update => Update::fromArray($item));
+
+        return new UpdatesResult($updates, Json::int($data, 'marker'));
     }
 
     /**
@@ -373,14 +386,20 @@ final class ApiClient
             $this->acquire($recipient->chatId);
         }
 
-        return Message::fromArray($this->requestObject('POST', '/messages', $query, $body->toArray()));
+        $data = $this->requestObject('POST', '/messages', $query, $body->toArray());
+        $messageData = $data['message'] ?? null;
+        if (!\is_array($messageData)) {
+            throw new InvalidResponseException('Expected a JSON object in response field "message".');
+        }
+
+        return Message::fromArray($messageData);
     }
 
-    public function editMessage(string $messageId, NewMessageBody $body): Message
+    public function editMessage(string $messageId, NewMessageBody $body): SuccessResponse
     {
         $query = $this->query(['message_id' => $messageId]);
 
-        return Message::fromArray($this->requestObject('PUT', '/messages', $query, $body->toArray()));
+        return SuccessResponse::fromArray($this->requestObject('PUT', '/messages', $query, $body->toArray()));
     }
 
     public function deleteMessage(string $messageId): SuccessResponse

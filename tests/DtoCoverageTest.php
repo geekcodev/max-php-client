@@ -18,6 +18,7 @@ use GeekCo\MaxPhpClient\Dto\ChatIcon;
 use GeekCo\MaxPhpClient\Dto\ChatListResult;
 use GeekCo\MaxPhpClient\Dto\ChatMember;
 use GeekCo\MaxPhpClient\Dto\ChatMembersResult;
+use GeekCo\MaxPhpClient\Dto\ContactAttachmentPayload;
 use GeekCo\MaxPhpClient\Dto\BotCommandsResult;
 use GeekCo\MaxPhpClient\Dto\EditChatBody;
 use GeekCo\MaxPhpClient\Dto\ErrorResponse;
@@ -40,6 +41,7 @@ use GeekCo\MaxPhpClient\Dto\Recipient;
 use GeekCo\MaxPhpClient\Dto\Subscription;
 use GeekCo\MaxPhpClient\Dto\SuccessResponse;
 use GeekCo\MaxPhpClient\Dto\Update;
+use GeekCo\MaxPhpClient\Dto\UpdatesResult;
 use GeekCo\MaxPhpClient\Dto\UploadResult;
 use GeekCo\MaxPhpClient\Dto\User;
 use GeekCo\MaxPhpClient\Dto\UserWithPhoto;
@@ -244,15 +246,21 @@ final class DtoCoverageTest extends TestCase
         $image = ImageAttachmentPayload::fromArray(['url' => 'u', 'token' => 't']);
         $photo = PhotoAttachmentPayload::fromArray(['url' => 'u', 'width' => 1, 'height' => 2]);
         $location = LocationAttachmentPayload::fromArray(['latitude' => 1.5, 'longitude' => 2.5]);
+        $contact = ContactAttachmentPayload::fromArray(['vcf_info' => 'BEGIN:VCARD', 'vcf_phone' => '79990000000', 'max_info' => ['name' => 'Ivan'], 'hash' => 'h1']);
 
         $this->assertSame(1, $audio->duration);
         $this->assertSame(1, $file->fileSize);
         $this->assertSame('u', $image->url);
         $this->assertSame(2, $photo->height);
         $this->assertSame(2.5, $location->longitude);
+        $this->assertSame('h1', $contact->hash);
+        $this->assertSame('79990000000', $contact->vcfPhone);
+        $this->assertSame(['name' => 'Ivan'], $contact->maxInfo);
 
         $this->assertSame(['latitude' => 1.5, 'longitude' => 2.5], $location->toArray());
+        $this->assertSame(['hash' => 'h1', 'vcf_info' => 'BEGIN:VCARD', 'vcf_phone' => '79990000000', 'max_info' => ['name' => 'Ivan']], $contact->toArray());
         $this->assertNull(ImageAttachmentPayload::fromArray([])->token);
+        $this->assertNull(ContactAttachmentPayload::fromArray(['hash' => 'h1'])->vcfInfo);
     }
 
     #[Test]
@@ -263,9 +271,16 @@ final class DtoCoverageTest extends TestCase
         $payload = new InlineKeyboardAttachmentPayload([$row]);
 
         $this->assertSame(ButtonType::Link, $button->type);
-        $this->assertSame(['rows' => [['buttons' => [['type' => 'link', 'text' => 'Go', 'url' => 'https://x']]]]], $payload->toArray());
-        $this->assertSame(['buttons' => [['type' => 'link', 'text' => 'Go', 'url' => 'https://x']]], $row->toArray());
+        $this->assertSame(['buttons' => [[['type' => 'link', 'text' => 'Go', 'url' => 'https://x']]]], $payload->toArray());
+        $this->assertSame([['type' => 'link', 'text' => 'Go', 'url' => 'https://x']], $row->toArray());
         $this->assertSame('https://x', $button->toArray()['url']);
+
+        $parsed = InlineKeyboardAttachmentPayload::fromArray(['buttons' => [[['type' => 'callback', 'text' => 'A']]]]);
+        $this->assertCount(1, $parsed->rows);
+        $this->assertSame(ButtonType::Callback, $parsed->rows[0]->buttons[0]->type);
+
+        $legacy = InlineKeyboardAttachmentPayload::fromArray(['rows' => [['buttons' => [['type' => 'callback', 'text' => 'B']]]]]);
+        $this->assertSame('B', $legacy->rows[0]->buttons[0]->text);
     }
 
     #[Test]
@@ -275,7 +290,20 @@ final class DtoCoverageTest extends TestCase
         $request = new AttachmentRequest(AttachmentType::InlineKeyboard, rows: [$row]);
 
         $this->assertSame('inline_keyboard', $request->toArray()['type']);
-        $this->assertSame([['buttons' => [['type' => 'callback', 'text' => 'Go', 'payload' => 'p']]]], $request->toArray()['payload']['rows']);
+        $this->assertSame([['type' => 'callback', 'text' => 'Go', 'payload' => 'p']], $request->toArray()['payload']['buttons'][0]);
+
+        $parsedButtons = AttachmentRequest::fromArray([
+            'type' => 'inline_keyboard',
+            'payload' => ['buttons' => [[['type' => 'callback', 'text' => 'A']]]],
+        ]);
+        $this->assertCount(1, $parsedButtons->rows);
+        $this->assertSame('A', $parsedButtons->rows[0]->buttons[0]->text);
+
+        $parsedLegacyRows = AttachmentRequest::fromArray([
+            'type' => 'inline_keyboard',
+            'payload' => ['rows' => [['buttons' => [['type' => 'callback', 'text' => 'B']]]]],
+        ]);
+        $this->assertSame('B', $parsedLegacyRows->rows[0]->buttons[0]->text);
     }
 
     #[Test]
@@ -357,6 +385,17 @@ final class DtoCoverageTest extends TestCase
     }
 
     #[Test]
+    public function it_parses_users_without_last_activity_time(): void
+    {
+        $array = ['user_id' => 1, 'first_name' => 'A', 'is_bot' => false];
+
+        $this->assertNull(User::fromArray($array)->lastActivityTime);
+        $this->assertNull(UserWithPhoto::fromArray($array)->lastActivityTime);
+        $this->assertNull(BotInfo::fromArray($array)->lastActivityTime);
+        $this->assertNull(ChatMember::fromArray([...$array, 'last_access_time' => 1, 'is_owner' => false, 'is_admin' => false, 'join_time' => 1])->lastActivityTime);
+    }
+
+    #[Test]
     public function it_roundtrips_new_message_body_with_attachments(): void
     {
         $body = new NewMessageBody(
@@ -430,18 +469,18 @@ final class DtoCoverageTest extends TestCase
         $result = $this->roundtrip([
             'success' => true,
             'failed_user_ids' => [5],
-            'details' => [['user_id' => 5, 'reason' => 'blocked']],
+            'failed_user_details' => [['user_id' => 5, 'error' => 'blocked']],
         ], AddChatMembersResult::class);
 
         $this->assertInstanceOf(AddChatMembersResult::class, $result);
         $this->assertSame([5], $result->failedUserIds);
-        $this->assertSame('blocked', $result->details[0]->reason);
+        $this->assertSame('blocked', $result->failedUserDetails[0]->error);
     }
 
     #[Test]
     public function it_roundtrips_a_failed_user_details(): void
     {
-        $this->assertSame(['user_id' => 5, 'reason' => 'blocked'], (new FailedUserDetails(5, 'blocked'))->toArray());
+        $this->assertSame(['user_id' => 5, 'error' => 'blocked'], (new FailedUserDetails(5, 'blocked'))->toArray());
     }
 
     #[Test]
@@ -453,11 +492,14 @@ final class DtoCoverageTest extends TestCase
         $chats = ChatListResult::fromArray(['chats' => [$chat], 'marker' => 1]);
         $members = ChatMembersResult::fromArray(['members' => [$member], 'marker' => 2]);
         $admins = ChatAdminsResult::fromArray(['members' => [$member], 'marker' => 3]);
+        $updates = UpdatesResult::fromArray(['updates' => [['update_type' => 'message_created', 'timestamp' => 1, 'chat_id' => 1]], 'marker' => 4]);
 
         $this->assertSame(1, ChatListResult::fromArray($chats->toArray())->marker);
         $this->assertSame(2, ChatMembersResult::fromArray($members->toArray())->marker);
         $this->assertSame(3, ChatAdminsResult::fromArray($admins->toArray())->marker);
+        $this->assertSame(4, UpdatesResult::fromArray($updates->toArray())->marker);
         $this->assertCount(1, $admins->members);
+        $this->assertCount(1, $updates->updates);
     }
 
     #[Test]
@@ -471,8 +513,8 @@ final class DtoCoverageTest extends TestCase
         $pin = new PinMessageBody('m1', notify: true);
         $this->assertSame(['message_id' => 'm1', 'notify' => true], $pin->toArray());
 
-        $edit = new EditChatBody(title: 'T', icon: new ChatIcon('https://i.jpg'), pin: true, notify: true);
-        $this->assertSame(['title' => 'T', 'icon' => ['url' => 'https://i.jpg'], 'pin' => true, 'notify' => true], $edit->toArray());
+        $edit = new EditChatBody(title: 'T', icon: new ChatIcon('https://i.jpg'), pin: 'm1', notify: true);
+        $this->assertSame(['title' => 'T', 'icon' => ['url' => 'https://i.jpg'], 'pin' => 'm1', 'notify' => true], $edit->toArray());
 
         $success = new SuccessResponse(true, 'done');
         $this->assertSame(['success' => true, 'message' => 'done'], $success->toArray());
@@ -539,11 +581,11 @@ final class DtoCoverageTest extends TestCase
     #[Test]
     public function it_parses_an_edit_chat_body(): void
     {
-        $body = EditChatBody::fromArray(['title' => 'T', 'icon' => ['url' => 'https://i.jpg'], 'pin' => true, 'notify' => false]);
+        $body = EditChatBody::fromArray(['title' => 'T', 'icon' => ['url' => 'https://i.jpg'], 'pin' => 'm1', 'notify' => false]);
 
         $this->assertSame('T', $body->title);
         $this->assertSame('https://i.jpg', $body->icon?->url);
-        $this->assertTrue($body->pin);
+        $this->assertSame('m1', $body->pin);
         $this->assertFalse($body->notify);
         $this->assertNull(EditChatBody::fromArray(['title' => 'T'])->icon);
     }
