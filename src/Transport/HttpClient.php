@@ -6,6 +6,7 @@ namespace GeekCo\MaxPhpClient\Transport;
 
 use GeekCo\MaxPhpClient\Exception\MaxApiException;
 use GeekCo\MaxPhpClient\Exception\NetworkException;
+use GeekCo\MaxPhpClient\RateLimit\RateLimiter;
 use GeekCo\MaxPhpClient\Retry\RetryStrategy;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
@@ -18,19 +19,20 @@ final class HttpClient
         private readonly RequestBuilder $requestBuilder,
         private readonly ResponseDecoder $responseDecoder,
         private readonly RetryStrategy $retryStrategy,
+        private readonly ?RateLimiter $globalRateLimiter = null,
     ) {
     }
 
     /**
      * @param array<string, int|string|bool|float|list<int|string|bool|float>|null> $query
-     * @param array<mixed>|null $jsonBody
+     * @param array<mixed>|object|null $jsonBody
      * @param array<string, string> $headers
      */
     public function request(
         string $method,
         string $path,
         array $query = [],
-        ?array $jsonBody = null,
+        array|object|null $jsonBody = null,
         string|StreamInterface|null $rawBody = null,
         array $headers = [],
         ?string $absoluteUri = null,
@@ -38,6 +40,8 @@ final class HttpClient
         $attempt = 0;
 
         while (true) {
+            $this->globalRateLimiter?->wait(0);
+
             $request = $this->requestBuilder->request(
                 $method,
                 $path,

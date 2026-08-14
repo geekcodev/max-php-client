@@ -64,9 +64,16 @@ final class ApiClient
         string $baseUri = self::BASE_URI,
         ?RetryStrategy $retryStrategy = null,
         ?RateLimiter $rateLimiter = null,
+        ?RateLimiter $globalRateLimiter = null,
     ): self {
         $requestBuilder = new RequestBuilder($uriFactory, $requestFactory, $streamFactory, $baseUri, $accessToken);
-        $http = new HttpClient($httpClient, $requestBuilder, new ResponseDecoder(), $retryStrategy ?? new RetryStrategy());
+        $http = new HttpClient(
+            $httpClient,
+            $requestBuilder,
+            new ResponseDecoder(),
+            $retryStrategy ?? new RetryStrategy(),
+            $globalRateLimiter ?? new RateLimiter(tokensPerSecond: 30.0, maxTokens: 30.0),
+        );
 
         return new self($http, $rateLimiter ?? new RateLimiter(), new Uploader($http, $streamFactory));
     }
@@ -163,12 +170,14 @@ final class ApiClient
         return SuccessResponse::fromArray($this->requestObject('DELETE', sprintf('/chats/%d/members/me', $chatId)));
     }
 
+    /**
+     * @param int|null $marker Deprecated: the API does not support query pagination for admins.
+     * @param int|null $count  Deprecated: the API does not support query pagination for admins.
+     */
     public function getChatAdmins(int $chatId, ?int $marker = null, ?int $count = null): ChatAdminsResult
     {
-        $query = $this->query(['marker' => $marker, 'count' => $count]);
-
         return ChatAdminsResult::fromArray(
-            $this->requestObject('GET', sprintf('/chats/%d/members/admins', $chatId), $query),
+            $this->requestObject('GET', sprintf('/chats/%d/members/admins', $chatId)),
         );
     }
 
@@ -180,8 +189,17 @@ final class ApiClient
         int $userId,
         array $permissions,
         ?string $alias = null,
+        ?int $marker = null,
     ): SuccessResponse {
         $this->acquire($chatId);
+
+        foreach ($permissions as $permission) {
+            if ($permission->isDeprecated()) {
+                throw new InvalidArgumentException(
+                    sprintf('Admin permission "%s" is deprecated and must not be granted.', $permission->value),
+                );
+            }
+        }
 
         $body = ['admins' => [[
             'user_id' => $userId,
@@ -189,6 +207,9 @@ final class ApiClient
         ]]];
         if ($alias !== null) {
             $body['admins'][0]['alias'] = $alias;
+        }
+        if ($marker !== null) {
+            $body['marker'] = $marker;
         }
 
         return SuccessResponse::fromArray(
@@ -435,7 +456,7 @@ final class ApiClient
     public function sendAnswer(string $callbackId, ?NewMessageBody $message = null): SuccessResponse
     {
         $query = $this->query(['callback_id' => $callbackId]);
-        $body = $message === null ? null : ['message' => $message->toArray()];
+        $body = $message === null ? (object) [] : ['message' => $message->toArray()];
 
         return SuccessResponse::fromArray($this->requestObject('POST', '/answers', $query, $body));
     }
@@ -464,24 +485,24 @@ final class ApiClient
 
     /**
      * @param array<string, int|string|bool|float> $query
-     * @param array<mixed>|null $jsonBody
+     * @param array<mixed>|object|null $jsonBody
      */
     private function request(
         string $method,
         string $path,
         array $query = [],
-        ?array $jsonBody = null,
+        array|object|null $jsonBody = null,
     ): mixed {
         return $this->http->request($method, $path, $query, $jsonBody);
     }
 
     /**
      * @param array<string, int|string|bool|float> $query
-     * @param array<mixed>|null $jsonBody
+     * @param array<mixed>|object|null $jsonBody
      *
      * @return array<mixed>
      */
-    private function requestObject(string $method, string $path, array $query = [], ?array $jsonBody = null): array
+    private function requestObject(string $method, string $path, array $query = [], array|object|null $jsonBody = null): array
     {
         $data = $this->request($method, $path, $query, $jsonBody);
         if (!\is_array($data)) {

@@ -11,6 +11,7 @@ readonly class ChatMember extends UserWithPhoto
 {
     /**
      * @param list<ChatAdminPermission>|null $permissions
+     * @param int $joinTime join_time in milliseconds
      */
     public function __construct(
         int $userId,

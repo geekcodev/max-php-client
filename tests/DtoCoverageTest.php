@@ -394,6 +394,30 @@ final class DtoCoverageTest extends TestCase
     }
 
     #[Test]
+    public function it_parses_deprecated_admin_permissions(): void
+    {
+        $permissions = ['post_edit_delete_message', 'edit_message', 'delete_message'];
+
+        $admin = ChatAdmin::fromArray(['user_id' => 1, 'permissions' => $permissions]);
+        $member = ChatMember::fromArray([
+            ...self::USER_ARRAY,
+            'last_access_time' => 1,
+            'is_owner' => false,
+            'is_admin' => true,
+            'join_time' => 1,
+            'permissions' => $permissions,
+        ]);
+
+        $this->assertSame(
+            [ChatAdminPermission::PostEditDeleteMessage, ChatAdminPermission::EditMessage, ChatAdminPermission::DeleteMessage],
+            $admin->permissions,
+        );
+        $this->assertSame($admin->permissions, $member->permissions);
+        $this->assertTrue(ChatAdminPermission::EditMessage->isDeprecated());
+        $this->assertFalse(ChatAdminPermission::Write->isDeprecated());
+    }
+
+    #[Test]
     public function it_rejects_a_non_string_admin_permission(): void
     {
         $this->expectException(\GeekCo\MaxPhpClient\Exception\InvalidResponseException::class);

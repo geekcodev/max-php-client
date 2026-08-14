@@ -263,11 +263,11 @@ final class ApiClientEndpointsTest extends TestCase
     {
         $this->http->next(fn ($request) => $this->json(['members' => [self::CHAT_MEMBER], 'marker' => 7]));
 
-        $result = $this->client()->getChatAdmins(5, marker: 1, count: 10);
+        $result = $this->client()->getChatAdmins(5);
 
         $request = $this->http->requests[0];
         $this->assertSame('/chats/5/members/admins', $request->getUri()->getPath());
-        $this->assertSame('marker=1&count=10', $request->getUri()->getQuery());
+        $this->assertSame('', $request->getUri()->getQuery());
         $this->assertSame(2, $result->members[0]->userId);
         $this->assertTrue($result->members[0]->isAdmin);
         $this->assertSame(7, $result->marker);
@@ -278,12 +278,24 @@ final class ApiClientEndpointsTest extends TestCase
     {
         $this->http->next(fn ($request) => $this->json(['success' => true]));
 
-        $this->client()->addChatAdmin(5, 2, [ChatAdminPermission::Write], alias: 'Moderator');
+        $this->client()->addChatAdmin(5, 2, [ChatAdminPermission::Write], alias: 'Moderator', marker: 10);
 
         $request = $this->http->requests[0];
         $this->assertSame('POST', $request->getMethod());
         $this->assertSame('/chats/5/members/admins', $request->getUri()->getPath());
-        $this->assertSame('{"admins":[{"user_id":2,"permissions":["write"],"alias":"Moderator"}]}', (string) $request->getBody());
+        $this->assertSame(
+            '{"admins":[{"user_id":2,"permissions":["write"],"alias":"Moderator"}],"marker":10}',
+            (string) $request->getBody(),
+        );
+    }
+
+    #[Test]
+    public function it_rejects_granting_a_deprecated_admin_permission(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('is deprecated and must not be granted');
+
+        $this->client()->addChatAdmin(5, 2, [ChatAdminPermission::EditMessage]);
     }
 
     #[Test]
@@ -511,7 +523,12 @@ final class ApiClientEndpointsTest extends TestCase
 
         $this->client()->sendAnswer('c1');
 
-        $this->assertSame('', (string) $this->http->requests[0]->getBody());
+        $request = $this->http->requests[0];
+        $this->assertSame('POST', $request->getMethod());
+        $this->assertSame('/answers', $request->getUri()->getPath());
+        $this->assertSame('callback_id=c1', $request->getUri()->getQuery());
+        $this->assertSame('{}', (string) $request->getBody());
+        $this->assertSame('application/json', $request->getHeaderLine('Content-Type'));
     }
 
     #[Test]

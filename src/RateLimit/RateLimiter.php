@@ -6,7 +6,7 @@ namespace GeekCo\MaxPhpClient\RateLimit;
 
 use GeekCo\MaxPhpClient\Exception\RateLimitException;
 
-final class RateLimiter
+class RateLimiter
 {
     /**
      * @var array<int, array{tokens: float, time: float}>
@@ -21,13 +21,39 @@ final class RateLimiter
 
     public function acquire(int $chatId): void
     {
+        $retryAfter = $this->consume($chatId);
+
+        if ($retryAfter > 0.0) {
+            throw new RateLimitException(429, retryAfter: (int) ceil($retryAfter));
+        }
+    }
+
+    public function wait(int $chatId): void
+    {
+        $retryAfter = $this->consume($chatId);
+
+        if ($retryAfter > 0.0) {
+            $this->sleep($retryAfter);
+        }
+    }
+
+    protected function sleep(float $seconds): void
+    {
+        usleep((int) ceil($seconds * 1_000_000));
+    }
+
+    /**
+     * @return float Seconds until the next token is available (0.0 when consumed).
+     */
+    private function consume(int $chatId): float
+    {
         $now = microtime(true);
         $bucket = $this->buckets[$chatId] ?? null;
 
         if ($bucket === null) {
             $this->buckets[$chatId] = ['tokens' => $this->maxTokens - 1.0, 'time' => $now];
 
-            return;
+            return 0.0;
         }
 
         $tokens = min($this->maxTokens, $bucket['tokens'] + ($now - $bucket['time']) * $this->tokensPerSecond);
@@ -35,11 +61,11 @@ final class RateLimiter
         if ($tokens < 1.0) {
             $this->buckets[$chatId] = ['tokens' => $tokens, 'time' => $now];
 
-            $retryAfter = (int) ceil((1.0 - $tokens) / $this->tokensPerSecond);
-
-            throw new RateLimitException(429, retryAfter: $retryAfter);
+            return (1.0 - $tokens) / $this->tokensPerSecond;
         }
 
         $this->buckets[$chatId] = ['tokens' => $tokens - 1.0, 'time' => $now];
+
+        return 0.0;
     }
 }
