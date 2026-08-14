@@ -24,14 +24,14 @@ final class RequestBuilder
 
     /**
      * @param array<string, int|string|bool|float|list<int|string|bool|float>|null> $query
-     * @param array<mixed>|null $jsonBody
+     * @param array<mixed>|object|null $jsonBody
      * @param array<string, string> $headers
      */
     public function request(
         string $method,
         string $path,
         array $query = [],
-        ?array $jsonBody = null,
+        array|object|null $jsonBody = null,
         string|StreamInterface|null $rawBody = null,
         array $headers = [],
         ?string $absoluteUri = null,

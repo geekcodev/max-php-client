@@ -146,8 +146,16 @@ $client = ApiClient::create(
 
 ## Rate limit
 
-`RateLimiter` — локальный token bucket (2 req/s, бакет на 2) для каждого `chat_id`. Используется автоматически при
-вызовах, связанных с чатом. При исчерпании бакета выбрасывается `RateLimitException`.
+API MAX ограничивает все запросы **30 rps** на `platform-api2.max.ru` и **2 req/s** на диалог/чат/канал для
+отправки/редактирования/удаления сообщений и ответов на callback.
+
+Клиент применяет оба лимита локально:
+
+- **Глобальный** (`HttpClient`): token bucket 30 req/s (бакет 30), ожидание при исчерпании — запросы просто
+  задерживаются, исключений нет. Настраивается опцией `global_rate_limiter` в `ApiClient::create()`.
+- **Per-chat** (`RateLimiter`): token bucket 2 req/s (бакет 2) для каждого `chat_id`. Используется автоматически при
+  вызовах, связанных с чатом; при исчерпании выбрасывается `RateLimitException`. Для `editMessage`/`deleteMessage`/
+  `sendAnswer` per-chat лимит не применяется (нет `chat_id`) — глобальный предохранитель всё равно действует.
 
 ## Загрузка медиа
 
@@ -347,6 +355,20 @@ MAX_API_TOKEN=<token> docker run --rm --network host \
 OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
 
 ## История изменений
+
+### v1.0.6 — sendAnswer
+`{}`, фикс парсинга администраторов, глобальный rate limit 30 rps, синхронизация с max-openapi (см.
+`RELEASE_NOTES_v1.0.6.md`)
+
+- `ApiClient::sendAnswer()`: при `message === null` тело `{}` (раньше — 400 Empty request body).
+- `ChatAdminPermission`: добавлены deprecated-значения `post_edit_delete_message`, `edit_message`, `delete_message`
+  — `getBotMembership()`/`getChatAdmins()`/`getChatMembers()` больше не падают на чатах со старыми правами.
+- `ApiClient::addChatAdmin()`: опциональный `?int $marker` (тело запроса); выдача deprecated-прав →
+  `InvalidArgumentException`.
+- `ApiClient::getChatAdmins()`: не шлёт query `marker`/`count` (параметры сохранены, помечены deprecated).
+- Глобальный rate limit 30 rps: `HttpClient` ожидает при исчерпании бакета; опция `global_rate_limiter`
+  в `ApiClient::create()` (дефолт 30 req/s).
+- Документация: `join_time` — мс; глобальный лимит 30 rps на `platform-api2.max.ru`.
 
 ### v1.0.3 — синхронизация с max-openapi, фикс парсинга Update
 

@@ -48,4 +48,42 @@ final class RateLimiterTest extends TestCase
         $limiter->acquire(2);
         $this->addToAssertionCount(1);
     }
+
+    #[Test]
+    public function it_waits_instead_of_throwing_when_the_bucket_is_empty(): void
+    {
+        $limiter = new RateLimiter(tokensPerSecond: 2.0, maxTokens: 2.0);
+
+        $limiter->acquire(1);
+        $limiter->acquire(1);
+
+        $start = microtime(true);
+        $limiter->wait(1);
+        $elapsed = microtime(true) - $start;
+
+        $this->assertGreaterThanOrEqual(0.4, $elapsed);
+
+        $limiter->acquire(1);
+        $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function it_accumulates_sleep_between_wait_calls(): void
+    {
+        $limiter = new class (2.0, 2.0) extends RateLimiter {
+            public float $sleepSeconds = 0.0;
+
+            protected function sleep(float $seconds): void
+            {
+                $this->sleepSeconds += $seconds;
+            }
+        };
+
+        $limiter->acquire(1);
+        $limiter->acquire(1);
+        $limiter->wait(1);
+        $limiter->wait(1);
+
+        $this->assertGreaterThan(0.9, $limiter->sleepSeconds);
+    }
 }

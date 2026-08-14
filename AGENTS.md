@@ -77,9 +77,10 @@ phpstan.neon                  level max
 
 ### Контракты компонентов
 
-- **`ApiClient::create(array $options): self`** — опции: `access_token` (обязательный), `http_client` (PSR-18),
-  `request_factory` / `stream_factory` (PSR-17), `base_uri`, `retry_strategy`, `rate_limiter`. Внутри собирает
-  `HttpClient` (transport + retry + rate limit) и `Uploader`. Используется во всех примерах (`examples/bootstrap.php`).
+- **`ApiClient::create()`** — параметры: `$httpClient` (PSR-18), `$requestFactory` / `$streamFactory` /
+  `$uriFactory` (PSR-17), `$accessToken` (обязательный), `$baseUri`, `$retryStrategy`, `$rateLimiter` (per-chat 2
+  req/s), `$globalRateLimiter` (по умолчанию 30 req/s). Внутри собирает `HttpClient` (transport + retry + глобальный
+  rate limit) и `Uploader`. Используется во всех примерах (`examples/bootstrap.php`).
 - **`WebhookHandler::decode(): Update|list<Update>`** — критичный нюанс: ответ может быть **одним объектом**
   **или** списком. Итерация без проверки ломает foreach:
   ```php
@@ -205,6 +206,23 @@ source .env && docker run --rm --network host \
 Спецификация: **https://github.com/geekcodev/max-openapi** (OpenAPI 3.1.0). Сервер:
 **https://platform-api2.max.ru**.
 
+### Процесс обновления при изменениях спеки
+
+При новом коммите в `max-openapi` — синхронизировать ядро по шагам:
+
+1. Скачать свежую спеку и сгенерировать дифф против последнего разобранного коммита:
+   `git clone https://github.com/geekcodev/max-openapi /tmp/opencode/max-openapi` → `git diff` двух коммитов.
+2. Пройтись по диффу: расхождения «спека vs код» → правки в `src/`/`tests/` + документация → обязательный Gate (раздел
+   7).
+3. Отложенное проверять реальным API через интеграционный смоук (`--group integration`, токен `MAX_API_TOKEN`), а не
+   выдумывать payload/формат.
+4. **Проверено и покрыто кодом (при новых диффах НЕ трогать повторно):**
+   `ErrorResponse.code` — string; инлайн-клавиатура `payload.buttons`; `web_app`/`contact_id`; contact-вложение
+   (`ContactAttachmentPayload`); nullable `User.last_activity_time`/`Update.user`; `getMessages` `from`/`to`;
+   `Attachment` без discriminator (маппинг по `type`); `NewMessageBody` без tg-специфики; deprecated-права
+   администраторов (см. §5 Enums); `join_time` в миллисекундах; rate limits 30 rps + 2 req/s (§9).
+5. Версионирование — только git-тегами; правки каждой синхронизации описывать в `RELEASE_NOTES_vX.Y.Z.md`.
+
 ### Аутентификация
 
 - Заголовок `Authorization: <access_token>` — **без** `Bearer ` префикса, токен голым.
@@ -219,9 +237,13 @@ source .env && docker run --rm --network host \
 - `GET /chats` **deprecated с июня 2026** — подписка на `bot_added`/`bot_started` + хранение chat_id у себя.
 - `type=photo` deprecated → `type=image`.
 
-### Rate limits (на диалог/чат/канал)
+### Rate limits
 
-- Отправка/редактирование/удаление сообщений и ответы на callback: **макс. 2/сек**.
+- **Глобальный лимит: 30 rps** на `platform-api2.max.ru` (все запросы).
+- Отправка/редактирование/удаление сообщений и ответы на callback: **макс. 2/сек на диалог/чат/канал**.
+- Клиент применяет локально оба лимита: глобальный token bucket 30 req/s (ожидание в `HttpClient`, настраивается опцией
+  `global_rate_limiter` в `ApiClient::create()`) и per-chat 2 req/s (`RateLimiter`, исключение
+  `RateLimitException` при исчерпании).
 
 ### Загрузка медиа (`POST /uploads`)
 
@@ -243,8 +265,7 @@ source .env && docker run --rm --network host \
 
 ### Ключевые схема-соглашения
 
-- Почти все timestamp — **Unix в миллисекундах** (`last_activity_time`, `timestamp`, `last_event_time`), исключение:
-  `join_time` — **секунды**.
+- Все timestamp — **Unix в миллисекундах** (`last_activity_time`, `timestamp`, `last_event_time`, `join_time`).
 - Пагинация — `marker` (int64, nullable) + `count`.
 - `message_id` / `callback_id` / `messageId` (path) — строки; `chat_id` / `user_id` — int64.
 - Ошибки: `ErrorResponse {code, message, error?}`. HTTP-коды: 400, 401, 404, 405, 429, 503.
@@ -294,7 +315,8 @@ source .env && docker run --rm --network host \
 - **UploadType**: `image`, `video`, `audio`, `file`
 - **TextFormat**: `markdown`, `html`
 - **ChatAdminPermission**: `read_all_messages`, `add_remove_members`, `add_admins`, `change_chat_info`,
-  `pin_message`, `write`, `can_call`, `edit_link`, `edit`, `delete`, `view_stats`
+  `pin_message`, `write`, `can_call`, `edit_link`, `edit`, `delete`, `view_stats`; deprecated (только в ответе API, не
+  выдавать): `post_edit_delete_message`, `edit_message`, `delete_message`
 - **UpdateType**: `bot_added`, `bot_started`, `bot_stopped`, `bot_removed`, `chat_title_changed`,
   `dialog_cleared`, `dialog_muted`, `dialog_unmuted`, `dialog_removed`, `message_callback`,
   `message_created`, `message_edited`, `message_removed`, `user_added`, `user_removed`
@@ -329,7 +351,7 @@ source .env && docker run --rm --network host \
    `Update::$user` **nullable** (для сообщений/колбэков `user` и `chat_id` берутся из `message.sender`/`recipient`).
 2. Токен — без `Bearer`; только заголовок, не query.
 3. `attachment.not.ready` — загруженное вложение ещё не готово: ждать и ретраить.
-4. `join_time` — секунды; остальные timestamp — миллисекунды.
+4. `join_time` — миллисекунды (как остальные timestamp).
 5. Из Docker-сети TLS до API блокируется — только `--network host`.
 6. Имя переменной — только `MAX_API_TOKEN` (старое `MAX_ACCESS_TOKEN` не используется).
 7. `getChats` deprecated — chat_id хранить через подписку на `bot_added`/`bot_started`.

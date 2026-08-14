@@ -17,4 +17,32 @@ enum ChatAdminPermission: string
     case Edit = 'edit';
     case Delete = 'delete';
     case ViewStats = 'view_stats';
+
+    /**
+     * @deprecated Returned by the API for legacy permissions; must not be granted.
+     */
+    case PostEditDeleteMessage = 'post_edit_delete_message';
+
+    /**
+     * @deprecated Returned by the API for legacy permissions; must not be granted.
+     */
+    case EditMessage = 'edit_message';
+
+    /**
+     * @deprecated Returned by the API for legacy permissions; must not be granted.
+     */
+    case DeleteMessage = 'delete_message';
+
+    public function isDeprecated(): bool
+    {
+        return in_array($this, self::deprecated(), true);
+    }
+
+    /**
+     * @return list<self>
+     */
+    private static function deprecated(): array
+    {
+        return [self::PostEditDeleteMessage, self::EditMessage, self::DeleteMessage];
+    }
 }
