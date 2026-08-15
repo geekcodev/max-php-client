@@ -275,37 +275,37 @@ source .env && docker run --rm --network host \
 
 ### Эндпоинты
 
-| Метод  | Путь                                      | operationId          | Описание                                                                        |
-|--------|-------------------------------------------|----------------------|---------------------------------------------------------------------------------|
-| GET    | `/me`                                     | `getMe`              | Инфо о боте (BotInfo)                                                           |
-| PATCH  | `/me/commands`                            | `editBotCommands`    | Команды бота (макс 32; `[]` — удалить все)                                      |
-| GET    | `/chats`                                  | `getChats`           | **DEPRECATED**                                                                  |
-| GET    | `/chats/{chatId}`                         | `getChat`            | Инфо о чате/канале                                                              |
-| PATCH  | `/chats/{chatId}`                         | `editChat`           | title/icon/pin/notify                                                           |
-| POST   | `/chats/{chatId}/actions`                 | `sendBotAction`      | SenderAction                                                                    |
-| GET    | `/chats/{chatId}/pin`                     | `getPinnedMessage`   | message или null                                                                |
-| PUT    | `/chats/{chatId}/pin`                     | `pinMessage`         | body: message_id, notify?                                                       |
-| DELETE | `/chats/{chatId}/pin`                     | `unpinMessage`       | Открепление                                                                     |
-| GET    | `/chats/{chatId}/members/me`              | `getBotMembership`   | Членство бота (ChatMember)                                                      |
-| DELETE | `/chats/{chatId}/members/me`              | `removeBotFromChat`  | Удаление бота                                                                   |
-| GET    | `/chats/{chatId}/members/admins`          | `getChatAdmins`      | Список админов + marker                                                         |
-| POST   | `/chats/{chatId}/members/admins`          | `addChatAdmin`       | Назначить админа (PUT-семантика)                                                |
-| DELETE | `/chats/{chatId}/members/admins/{userId}` | `removeChatAdmin`    | Снять админа                                                                    |
-| GET    | `/chats/{chatId}/members`                 | `getChatMembers`     | Участники; query: user_ids?, marker?, count?(1-100, default 20)                 |
-| POST   | `/chats/{chatId}/members`                 | `addChatMembers`     | body: user_ids (макс 100); ответ + failed_user_ids/details                      |
-| DELETE | `/chats/{chatId}/members`                 | `removeChatMember`   | query: user_id (обяз.), block?(bool, default false)                             |
-| GET    | `/subscriptions`                          | `getSubscriptions`   | Список webhook-подписок                                                         |
-| POST   | `/subscriptions`                          | `createSubscription` | body: url(https), update_types?, secret?                                        |
-| DELETE | `/subscriptions`                          | `deleteSubscription` | query: url (обяз.)                                                              |
-| GET    | `/updates`                                | `getUpdates`         | Long Polling; query: limit(1-1000, d100), timeout(0-90, d30), marker?, types?   |
-| POST   | `/uploads`                                | `uploadMedia`        | query: type (обяз.); ответ {url, token?}                                        |
-| GET    | `/messages`                               | `getMessages`        | query: chat_id? message_ids?(csv), from?, to?, count?(1-100, d50)               |
-| POST   | `/messages`                               | `sendMessage`        | query: user_id? chat_id? (одно из), disable_link_preview?; body: NewMessageBody |
-| PUT    | `/messages`                               | `editMessage`        | query: message_id (обяз.); body: NewMessageBody                                 |
-| DELETE | `/messages`                               | `deleteMessage`      | query: message_id (обяз.)                                                       |
-| GET    | `/messages/{messageId}`                   | `getMessageById`     | path: messageId (строка, `[a-zA-Z0-9_-]+`)                                      |
-| GET    | `/videos/{videoToken}`                    | `getVideoInfo`       | Инфо о видео (VideoInfo)                                                        |
-| POST   | `/answers`                                | `sendAnswer`         | query: callback_id (обяз.); body: {message?: NewMessageBody}                    |
+| Метод  | Путь                                      | operationId          | Описание                                                                                                                  |
+|--------|-------------------------------------------|----------------------|---------------------------------------------------------------------------------------------------------------------------|
+| GET    | `/me`                                     | `getMe`              | Инфо о боте (BotInfo)                                                                                                     |
+| PATCH  | `/me/commands`                            | `editBotCommands`    | Команды бота (макс 32; `[]` — удалить все)                                                                                |
+| GET    | `/chats`                                  | `getChats`           | **DEPRECATED**                                                                                                            |
+| GET    | `/chats/{chatId}`                         | `getChat`            | Инфо о чате/канале                                                                                                        |
+| PATCH  | `/chats/{chatId}`                         | `editChat`           | title/icon/pin/notify                                                                                                     |
+| POST   | `/chats/{chatId}/actions`                 | `sendBotAction`      | SenderAction                                                                                                              |
+| GET    | `/chats/{chatId}/pin`                     | `getPinnedMessage`   | message или null                                                                                                          |
+| PUT    | `/chats/{chatId}/pin`                     | `pinMessage`         | body: message_id, notify?                                                                                                 |
+| DELETE | `/chats/{chatId}/pin`                     | `unpinMessage`       | Открепление                                                                                                               |
+| GET    | `/chats/{chatId}/members/me`              | `getBotMembership`   | Членство бота (ChatMember)                                                                                                |
+| DELETE | `/chats/{chatId}/members/me`              | `removeBotFromChat`  | Удаление бота                                                                                                             |
+| GET    | `/chats/{chatId}/members/admins`          | `getChatAdmins`      | Список админов + marker                                                                                                   |
+| POST   | `/chats/{chatId}/members/admins`          | `addChatAdmin`       | Назначить админа (PUT-семантика)                                                                                          |
+| DELETE | `/chats/{chatId}/members/admins/{userId}` | `removeChatAdmin`    | Снять админа                                                                                                              |
+| GET    | `/chats/{chatId}/members`                 | `getChatMembers`     | Участники; query: user_ids?, marker?, count?(1-100, default 20)                                                           |
+| POST   | `/chats/{chatId}/members`                 | `addChatMembers`     | body: user_ids (макс 100); ответ + failed_user_ids/details                                                                |
+| DELETE | `/chats/{chatId}/members`                 | `removeChatMember`   | query: user_id (обяз.), block?(bool, default false)                                                                       |
+| GET    | `/subscriptions`                          | `getSubscriptions`   | Список webhook-подписок                                                                                                   |
+| POST   | `/subscriptions`                          | `createSubscription` | body: url(https), update_types?, secret?                                                                                  |
+| DELETE | `/subscriptions`                          | `deleteSubscription` | query: url (обяз.)                                                                                                        |
+| GET    | `/updates`                                | `getUpdates`         | Long Polling; query: limit(1-1000, d100), timeout(0-90, d30), marker?, types?                                             |
+| POST   | `/uploads`                                | `uploadMedia`        | query: type (обяз.); ответ {url, token?}                                                                                  |
+| GET    | `/messages`                               | `getMessages`        | query: chat_id? message_ids?(csv), from?, to?, count?(1-100, d50)                                                         |
+| POST   | `/messages`                               | `sendMessage`        | query: user_id? chat_id? (одно из), disable_link_preview?; body: NewMessageBody                                           |
+| PUT    | `/messages`                               | `editMessage`        | query: message_id (обяз.); body: NewMessageBody                                                                           |
+| DELETE | `/messages`                               | `deleteMessage`      | query: message_id (обяз.)                                                                                                 |
+| GET    | `/messages/{messageId}`                   | `getMessageById`     | path: messageId (строка, `[a-zA-Z0-9_-]+`)                                                                                |
+| GET    | `/videos/{videoToken}`                    | `getVideoInfo`       | Инфо о видео (VideoInfo)                                                                                                  |
+| POST   | `/answers`                                | `sendAnswer`         | query: callback_id (обяз.); body: {message?: NewMessageBody, notification?: string} (message или notification обязателен) |
 
 ### Enums
 

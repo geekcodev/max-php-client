@@ -173,6 +173,22 @@ $message = $client->sendMessage(
 
 Клиент сам ждёт готовности вложения (`attachment.not.ready`) с экспоненциальными повторами перед отправкой сообщения.
 
+## Ответ на callback
+
+```php
+use GeekCo\MaxPhpClient\Dto\NewMessageBody;
+
+// Обновить сообщение с кнопками и/или показать одноразовое уведомление
+$client->sendAnswer(
+    callbackId: $update->callback?->callbackId ?? '',
+    message: new NewMessageBody(text: 'Кнопка нажата'),
+    notification: 'Обрабатываю…',
+);
+```
+
+API требует `message` **или** `notification` — при вызове без обоих клиент выбрасывает
+`InvalidArgumentException` до запроса.
+
 ## Вебхуки
 
 ```php
@@ -356,7 +372,14 @@ OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
 
 ## История изменений
 
+### v1.0.7 — sendAnswer: notification, fail-fast (см. `RELEASE_NOTES_v1.0.7.md`)
+
+- `ApiClient::sendAnswer()`: добавлен опциональный `?string $notification` (одноразовое уведомление).
+- API требует `message` или `notification`: вызов без обоих → `InvalidArgumentException` (раньше клиент слал `{}`
+  и получал 400 `message or notification required`); пустой `NewMessageBody` тоже отклоняется.
+
 ### v1.0.6 — sendAnswer
+
 `{}`, фикс парсинга администраторов, глобальный rate limit 30 rps, синхронизация с max-openapi (см.
 `RELEASE_NOTES_v1.0.6.md`)
 
