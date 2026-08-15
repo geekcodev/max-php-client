@@ -453,10 +453,27 @@ final class ApiClient
         return $this->uploader->upload($type, $filePath);
     }
 
-    public function sendAnswer(string $callbackId, ?NewMessageBody $message = null): SuccessResponse
-    {
+    public function sendAnswer(
+        string $callbackId,
+        ?NewMessageBody $message = null,
+        ?string $notification = null,
+    ): SuccessResponse {
+        if ($message === null && $notification === null) {
+            throw new InvalidArgumentException('Either $message or $notification must be provided to answer a callback.');
+        }
+
+        if ($message !== null && $message->toArray() === []) {
+            throw new InvalidArgumentException('$message must contain text, attachments or a link.');
+        }
+
         $query = $this->query(['callback_id' => $callbackId]);
-        $body = $message === null ? (object) [] : ['message' => $message->toArray()];
+        $body = array_filter(
+            [
+                'message' => $message?->toArray(),
+                'notification' => $notification,
+            ],
+            static fn (mixed $value): bool => $value !== null,
+        );
 
         return SuccessResponse::fromArray($this->requestObject('POST', '/answers', $query, $body));
     }

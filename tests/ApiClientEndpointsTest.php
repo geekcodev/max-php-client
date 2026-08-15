@@ -517,18 +517,47 @@ final class ApiClientEndpointsTest extends TestCase
     }
 
     #[Test]
-    public function it_sends_an_answer_without_a_message(): void
+    public function it_requires_message_or_notification_to_answer(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->client()->sendAnswer('c1');
+    }
+
+    #[Test]
+    public function it_rejects_an_empty_answer_message(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->client()->sendAnswer('c1', new NewMessageBody());
+    }
+
+    #[Test]
+    public function it_sends_an_answer_with_a_notification(): void
     {
         $this->http->next(fn ($request) => $this->json(['success' => true]));
 
-        $this->client()->sendAnswer('c1');
+        $result = $this->client()->sendAnswer('c1', notification: 'Готово');
 
         $request = $this->http->requests[0];
         $this->assertSame('POST', $request->getMethod());
         $this->assertSame('/answers', $request->getUri()->getPath());
         $this->assertSame('callback_id=c1', $request->getUri()->getQuery());
-        $this->assertSame('{}', (string) $request->getBody());
+        $this->assertSame('{"notification":"Готово"}', (string) $request->getBody());
         $this->assertSame('application/json', $request->getHeaderLine('Content-Type'));
+        $this->assertTrue($result->success);
+    }
+
+    #[Test]
+    public function it_sends_an_answer_with_message_and_notification(): void
+    {
+        $this->http->next(fn ($request) => $this->json(['success' => true]));
+
+        $result = $this->client()->sendAnswer('c1', NewMessageBody::create(text: 'Answer'), 'Готово');
+
+        $request = $this->http->requests[0];
+        $this->assertSame('{"message":{"text":"Answer"},"notification":"Готово"}', (string) $request->getBody());
+        $this->assertTrue($result->success);
     }
 
     #[Test]
