@@ -115,6 +115,46 @@ final class UploaderTest extends TestCase
     }
 
     #[Test]
+    public function it_extracts_token_from_photos_dict_for_image_uploads(): void
+    {
+        $factory = new HttpFactory();
+        $http = new MockHttpClient();
+        $client = new HttpClient(
+            $http,
+            new RequestBuilder($factory, $factory, $factory, 'https://platform-api2.max.ru', 'token'),
+            new ResponseDecoder(),
+            new RetryStrategy(),
+        );
+        $uploader = new Uploader($client, $factory);
+
+        $file = tempnam(sys_get_temp_dir(), 'max-test') . '.png';
+        file_put_contents($file, "\x89PNG\r\n");
+
+        // Step 1: no token
+        $http->next(function () {
+            return (new HttpFactory())->createResponse(200)
+                ->withBody((new HttpFactory())->createStream(json_encode(['url' => 'https://iu.oneme.ru/uploadImage?...'], JSON_THROW_ON_ERROR)));
+        });
+
+        // Step 2: photos dict (real MAX API response for image uploads)
+        $http->next(function () {
+            return (new HttpFactory())->createResponse(200)
+                ->withBody((new HttpFactory())->createStream(json_encode([
+                    'photos' => [
+                        'YcCXhCxSDt5e1H1xWc2YaWeBudNi54f+tUvMja2uwgPkNsxnRLlr/A=' => ['token' => 'img-photo-token'],
+                    ],
+                ], JSON_THROW_ON_ERROR)));
+        });
+
+        $result = $uploader->upload(UploadType::Image, $file);
+
+        $this->assertSame('https://iu.oneme.ru/uploadImage?...', $result->url);
+        $this->assertSame('img-photo-token', $result->token);
+
+        unlink($file);
+    }
+
+    #[Test]
     public function it_falls_back_to_token_from_step1_when_step2_has_no_token(): void
     {
         $factory = new HttpFactory();

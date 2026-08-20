@@ -55,6 +55,15 @@ final class Uploader
         $tokenFromStep2 = null;
         if (\is_array($uploadResult)) {
             $tokenFromStep2 = Json::string($uploadResult, 'token');
+
+            // For image uploads, the token is inside the "photos" dict, not top-level "token".
+            if ($tokenFromStep2 === null && isset($uploadResult['photos']) && \is_array($uploadResult['photos'])) {
+                $photos = $uploadResult['photos'];
+                $lastPhoto = end($photos);
+                if (\is_array($lastPhoto) && isset($lastPhoto['token']) && \is_string($lastPhoto['token'])) {
+                    $tokenFromStep2 = $lastPhoto['token'];
+                }
+            }
         }
 
         return new UploadResult(
