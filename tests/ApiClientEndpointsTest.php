@@ -484,7 +484,10 @@ final class ApiClientEndpointsTest extends TestCase
         $file = tempnam(sys_get_temp_dir(), 'max-test');
         file_put_contents($file, 'image-bytes');
 
+        // Step 1: POST /uploads → get URL
         $this->http->next(fn ($request) => $this->json(['url' => 'https://iu.oneme.ru/x.jpg', 'token' => 't1']));
+        // Step 2: POST file to upload URL → get token
+        $this->http->next(fn ($request) => $this->json(['token' => 't2']));
 
         try {
             $result = $this->client()->uploadMedia(UploadType::Image, $file);
@@ -492,13 +495,19 @@ final class ApiClientEndpointsTest extends TestCase
             unlink($file);
         }
 
-        $request = $this->http->requests[0];
-        $this->assertSame('POST', $request->getMethod());
-        $this->assertSame('/uploads', $request->getUri()->getPath());
-        $this->assertSame('type=image', $request->getUri()->getQuery());
-        $this->assertStringStartsWith('multipart/form-data;', $request->getHeaderLine('Content-Type'));
+        $step1 = $this->http->requests[0];
+        $this->assertSame('POST', $step1->getMethod());
+        $this->assertSame('/uploads', $step1->getUri()->getPath());
+        $this->assertSame('type=image', $step1->getUri()->getQuery());
+        $this->assertSame('', (string) $step1->getBody());
+
+        $step2 = $this->http->requests[1];
+        $this->assertSame('POST', $step2->getMethod());
+        $this->assertSame('https://iu.oneme.ru/x.jpg', (string) $step2->getUri());
+        $this->assertStringStartsWith('multipart/form-data;', $step2->getHeaderLine('Content-Type'));
+
         $this->assertSame('https://iu.oneme.ru/x.jpg', $result->url);
-        $this->assertSame('t1', $result->token);
+        $this->assertSame('t2', $result->token);
     }
 
     #[Test]
