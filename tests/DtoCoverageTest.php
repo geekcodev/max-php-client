@@ -175,6 +175,42 @@ final class DtoCoverageTest extends TestCase
         $this->assertSame('T', $chat->title);
         $this->assertSame('https://i.jpg', $chat->icon?->url);
         $this->assertSame('hi', $chat->pinnedMessage?->body?->text);
+        $this->assertInstanceOf(UserWithPhoto::class, $chat->dialogWithUser);
+    }
+
+    #[Test]
+    public function it_parses_dialog_with_user_as_user_with_photo(): void
+    {
+        $array = [
+            'chat_id' => 1,
+            'type' => 'dialog',
+            'status' => 'active',
+            'last_event_time' => 100,
+            'participants_count' => 2,
+            'is_public' => false,
+            'dialog_with_user' => [
+                'user_id' => 7,
+                'first_name' => 'Ivan',
+                'last_name' => 'Petrov',
+                'username' => 'ivan',
+                'is_bot' => false,
+                'last_activity_time' => 1000,
+                'description' => 'desc',
+                'avatar_url' => 'https://iu.oneme.ru/av.jpg',
+                'full_avatar_url' => 'https://iu.oneme.ru/av_full.jpg',
+            ],
+        ];
+        $chat = Chat::fromArray($array);
+        $partner = $chat->dialogWithUser;
+
+        $this->assertInstanceOf(UserWithPhoto::class, $partner);
+        $this->assertSame('https://iu.oneme.ru/av.jpg', $partner?->avatarUrl);
+        $this->assertSame('https://iu.oneme.ru/av_full.jpg', $partner?->fullAvatarUrl);
+        $this->assertSame('desc', $partner?->description);
+
+        $decoded = Chat::fromArray($chat->toArray());
+        $this->assertSame('https://iu.oneme.ru/av.jpg', $decoded->dialogWithUser?->avatarUrl);
+        $this->assertSame('https://iu.oneme.ru/av_full.jpg', $decoded->dialogWithUser?->fullAvatarUrl);
     }
 
     #[Test]

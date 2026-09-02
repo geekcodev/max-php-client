@@ -27,7 +27,7 @@ readonly class Chat
         public ?array $participants = null,
         public ?string $link = null,
         public ?string $description = null,
-        public ?User $dialogWithUser = null,
+        public ?UserWithPhoto $dialogWithUser = null,
         public ?int $messagesCount = null,
         public ?Message $pinnedMessage = null,
     ) {
@@ -54,7 +54,7 @@ readonly class Chat
             participants: Json::map($data, 'participants', static fn (mixed $item): User => User::fromArray((array) $item)),
             link: Json::string($data, 'link'),
             description: Json::string($data, 'description'),
-            dialogWithUser: \is_array($dialogWithUserData) ? User::fromArray($dialogWithUserData) : null,
+            dialogWithUser: \is_array($dialogWithUserData) ? UserWithPhoto::fromArray($dialogWithUserData) : null,
             messagesCount: Json::int($data, 'messages_count'),
             pinnedMessage: \is_array($pinnedMessageData) ? Message::fromArray($pinnedMessageData) : null,
         );
