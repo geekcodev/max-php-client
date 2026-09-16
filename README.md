@@ -372,6 +372,13 @@ OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
 
 ## История изменений
 
+### v1.1.2 — ContactVerifier: приём хеша в hex и base64 (см. `RELEASE_NOTES_v1.1.2.md`)
+
+- `ContactVerifier::verify()` теперь принимает хеш в **hex или base64** — стандартном и URL-safe, с паддингом и без
+  (поведение официального клиента `maxigo-client`). Раньше сравнивался только hex; если MAX присылал хеш в base64,
+  валидный контакт из `request_contact`
+  отклонялся («Не удалось проверить контакт»). Обратная совместимость не нарушена.
+
 ### v1.1.1 — ContactVerifier: нормализация CRLF перед проверкой хеша (см. `RELEASE_NOTES_v1.1.1.md`)
 
 - `ContactVerifier::verify()` теперь нормализует и литеральные `\r\n`/`\n`, и реальные CRLF/CR-байты → LF. Раньше
