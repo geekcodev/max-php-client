@@ -24,6 +24,32 @@ final class ContactVerifierTest extends TestCase
     }
 
     #[Test]
+    public function it_verifies_contact_hash_with_real_crlf_bytes(): void
+    {
+        $token = 'secret';
+        $vcf = "BEGIN:VCARD\r\nVERSION:3.0\r\nN:John Doe\r\nEND:VCARD";
+
+        $hash = hash_hmac('sha256', "BEGIN:VCARD\nVERSION:3.0\nN:John Doe\nEND:VCARD", $token);
+
+        $verifier = new ContactVerifier($token);
+
+        $this->assertTrue($verifier->verify($vcf, $hash));
+    }
+
+    #[Test]
+    public function it_verifies_contact_hash_with_mixed_literal_and_real_crlf(): void
+    {
+        $token = 'secret';
+        $vcf = "BEGIN:VCARD\r\nVERSION:3.0\nN:John Doe\r\nFULLNAME:John\r\nEND:VCARD";
+
+        $hash = hash_hmac('sha256', "BEGIN:VCARD\nVERSION:3.0\nN:John Doe\nFULLNAME:John\nEND:VCARD", $token);
+
+        $verifier = new ContactVerifier($token);
+
+        $this->assertTrue($verifier->verify($vcf, $hash));
+    }
+
+    #[Test]
     public function it_rejects_a_wrong_hash(): void
     {
         $verifier = new ContactVerifier('secret');
