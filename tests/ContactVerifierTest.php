@@ -56,4 +56,63 @@ final class ContactVerifierTest extends TestCase
 
         $this->assertFalse($verifier->verify('BEGIN:VCARD', hash_hmac('sha256', 'BEGIN:VCARD', 'other')));
     }
+
+    #[Test]
+    public function it_verifies_contact_hash_in_standard_base64(): void
+    {
+        $expected = hash_hmac('sha256', 'BEGIN:VCARD', 'secret', true);
+
+        $this->assertTrue((new ContactVerifier('secret'))->verify(
+            'BEGIN:VCARD',
+            base64_encode($expected),
+        ));
+    }
+
+    #[Test]
+    public function it_verifies_contact_hash_in_standard_base64_without_padding(): void
+    {
+        $expected = hash_hmac('sha256', 'BEGIN:VCARD', 'secret', true);
+
+        $this->assertTrue((new ContactVerifier('secret'))->verify(
+            'BEGIN:VCARD',
+            rtrim(base64_encode($expected), '='),
+        ));
+    }
+
+    #[Test]
+    public function it_verifies_contact_hash_in_url_safe_base64(): void
+    {
+        $expected = hash_hmac('sha256', 'BEGIN:VCARD', 'secret', true);
+
+        $this->assertTrue((new ContactVerifier('secret'))->verify(
+            'BEGIN:VCARD',
+            strtr(base64_encode($expected), '+/', '-_'),
+        ));
+    }
+
+    #[Test]
+    public function it_verifies_contact_hash_in_url_safe_base64_without_padding(): void
+    {
+        $expected = hash_hmac('sha256', 'BEGIN:VCARD', 'secret', true);
+
+        $this->assertTrue((new ContactVerifier('secret'))->verify(
+            'BEGIN:VCARD',
+            rtrim(strtr(base64_encode($expected), '+/', '-_'), '='),
+        ));
+    }
+
+    #[Test]
+    public function it_rejects_a_garbage_hash(): void
+    {
+        $this->assertFalse((new ContactVerifier('secret'))->verify('BEGIN:VCARD', '!!!not-a-hash!!!'));
+    }
+
+    #[Test]
+    public function it_rejects_an_empty_hash_or_vcf(): void
+    {
+        $verifier = new ContactVerifier('secret');
+
+        $this->assertFalse($verifier->verify('', hash_hmac('sha256', '', 'secret')));
+        $this->assertFalse($verifier->verify('BEGIN:VCARD', ''));
+    }
 }
