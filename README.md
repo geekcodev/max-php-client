@@ -372,6 +372,14 @@ OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
 
 ## История изменений
 
+### v1.1.1 — ContactVerifier: нормализация CRLF перед проверкой хеша (см. `RELEASE_NOTES_v1.1.1.md`)
+
+- `ContactVerifier::verify()` теперь нормализует и литеральные `\r\n`/`\n`, и реальные CRLF/CR-байты → LF. Раньше
+  реальные CRLF после `json_decode` замена не находила, и валидный контакт из `request_contact`
+  отклонялся («Не удалось проверить контакт»). Обратная совместимость не нарушена.
+
+### v1.1.0 — тип dialog_with_user: UserWithPhoto (см. `RELEASE_NOTES_v1.1.0.md`)
+
 ### v1.0.7 — sendAnswer: notification, fail-fast (см. `RELEASE_NOTES_v1.0.7.md`)
 
 - `ApiClient::sendAnswer()`: добавлен опциональный `?string $notification` (одноразовое уведомление).
