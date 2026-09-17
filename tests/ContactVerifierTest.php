@@ -11,42 +11,36 @@ use PHPUnit\Framework\TestCase;
 final class ContactVerifierTest extends TestCase
 {
     #[Test]
-    public function it_verifies_contact_hash(): void
-    {
-        $token = 'secret';
-        $vcf = 'BEGIN:VCARD\r\nVERSION:3.0\r\nN:John Doe\r\nEND:VCARD';
-
-        $hash = hash_hmac('sha256', "BEGIN:VCARD\nVERSION:3.0\nN:John Doe\nEND:VCARD", $token);
-
-        $verifier = new ContactVerifier($token);
-
-        $this->assertTrue($verifier->verify($vcf, $hash));
-    }
-
-    #[Test]
-    public function it_verifies_contact_hash_with_real_crlf_bytes(): void
+    public function it_verifies_contact_hash_over_raw_vcf_bytes(): void
     {
         $token = 'secret';
         $vcf = "BEGIN:VCARD\r\nVERSION:3.0\r\nN:John Doe\r\nEND:VCARD";
 
-        $hash = hash_hmac('sha256', "BEGIN:VCARD\nVERSION:3.0\nN:John Doe\nEND:VCARD", $token);
+        $hash = hash_hmac('sha256', $vcf, $token);
 
-        $verifier = new ContactVerifier($token);
-
-        $this->assertTrue($verifier->verify($vcf, $hash));
+        $this->assertTrue((new ContactVerifier($token))->verify($vcf, $hash));
     }
 
     #[Test]
-    public function it_verifies_contact_hash_with_mixed_literal_and_real_crlf(): void
+    public function it_verifies_contact_hash_over_literal_crlf_restored_to_crlf(): void
     {
         $token = 'secret';
-        $vcf = "BEGIN:VCARD\r\nVERSION:3.0\nN:John Doe\r\nFULLNAME:John\r\nEND:VCARD";
+        $vcf = 'BEGIN:VCARD\r\nVERSION:3.0\r\nN:John Doe\r\nEND:VCARD';
 
-        $hash = hash_hmac('sha256', "BEGIN:VCARD\nVERSION:3.0\nN:John Doe\nFULLNAME:John\nEND:VCARD", $token);
+        $hash = hash_hmac('sha256', "BEGIN:VCARD\r\nVERSION:3.0\r\nN:John Doe\r\nEND:VCARD", $token);
 
-        $verifier = new ContactVerifier($token);
+        $this->assertTrue((new ContactVerifier($token))->verify($vcf, $hash));
+    }
 
-        $this->assertTrue($verifier->verify($vcf, $hash));
+    #[Test]
+    public function it_verifies_contact_hash_with_trailing_crlf_as_sent_by_max(): void
+    {
+        $token = 'secret';
+        $vcf = "BEGIN:VCARD\r\nVERSION:3.0\r\nTEL;TYPE=cell:79250557481\r\nFN:Евгений\r\nEND:VCARD\r\n";
+
+        $hash = hash_hmac('sha256', $vcf, $token);
+
+        $this->assertTrue((new ContactVerifier($token))->verify($vcf, $hash));
     }
 
     #[Test]
