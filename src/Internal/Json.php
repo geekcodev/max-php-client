@@ -32,8 +32,10 @@ final class Json
     }
 
     /**
-     * Int, который API в некоторых объектах отдаёт строкой (int64 в `link`):
-     * числовая строка приводится к int, отсутствующее значение — null.
+     * Int, который API в некоторых объектах отдаёт не как int: числовая строка
+     * (int64 в `link`) и целочисленный float приводятся к int, отсутствующее
+     * значение — null. Неоднозначные значения (объект, «5.5», «007») отклоняются:
+     * это уже не то же самое число.
      */
     public static function tolerantInt(array $data, string $key): ?int
     {
@@ -41,15 +43,41 @@ final class Json
             return null;
         }
 
-        if (\is_int($data[$key])) {
-            return $data[$key];
+        $value = $data[$key];
+
+        if (\is_int($value)) {
+            return $value;
         }
 
-        if (\is_string($data[$key]) && ($int = filter_var($data[$key], FILTER_VALIDATE_INT)) !== false) {
+        if (\is_float($value) && $value === floor($value) && abs($value) <= (float) PHP_INT_MAX) {
+            return (int) $value;
+        }
+
+        if (\is_string($value) && ($int = filter_var(trim($value), FILTER_VALIDATE_INT)) !== false) {
             return $int;
         }
 
-        throw new InvalidResponseException(sprintf('Field "%s" must be an integer.', $key));
+        throw new InvalidResponseException(sprintf(
+            'Field "%s" must be an integer or a numeric string, got %s.',
+            $key,
+            self::describe($value),
+        ));
+    }
+
+    /**
+     * Компактное представление значения для сообщения об ошибке: показывает, что
+     * именно прислал API (объект, float, строка с мусором). JSON без
+     * JSON_UNESCAPED_UNICODE — чтобы обрезка по байтам не разрывала символы.
+     */
+    private static function describe(mixed $value): string
+    {
+        $encoded = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR);
+
+        if ($encoded === false) {
+            return \get_debug_type($value);
+        }
+
+        return strlen($encoded) > 64 ? substr($encoded, 0, 61).'...' : $encoded;
     }
 
     public static function requiredString(array $data, string $key): string

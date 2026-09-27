@@ -60,6 +60,9 @@ final class JsonTest extends TestCase
         $this->assertSame(5, Json::tolerantInt(['n' => '5'], 'n'));
         $this->assertSame(-5, Json::tolerantInt(['n' => '-5'], 'n'));
         $this->assertSame(0, Json::tolerantInt(['n' => '0'], 'n'));
+        $this->assertSame(5, Json::tolerantInt(['n' => ' 5 '], 'n'));
+        $this->assertSame(5, Json::tolerantInt(['n' => 5.0], 'n'));
+        $this->assertSame(-5, Json::tolerantInt(['n' => -5.0], 'n'));
         $this->assertSame(PHP_INT_MAX, Json::tolerantInt(['n' => (string) PHP_INT_MAX], 'n'));
     }
 
@@ -72,11 +75,21 @@ final class JsonTest extends TestCase
         Json::tolerantInt(['n' => $value], 'n');
     }
 
+    #[Test]
+    public function it_reports_the_received_value_when_tolerant_int_fails(): void
+    {
+        $this->expectException(InvalidResponseException::class);
+        $this->expectExceptionMessage('Field "n" must be an integer or a numeric string, got {"user_id":7}.');
+
+        Json::tolerantInt(['n' => ['user_id' => 7]], 'n');
+    }
+
     public static function nonIntegerValueProvider(): array
     {
         return [
             'bool' => [true],
             'float' => [5.5],
+            'huge float' => [1.0e30],
             'array' => [[5]],
             'empty string' => [''],
             'not a number' => ['abc'],
