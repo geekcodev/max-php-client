@@ -372,28 +372,28 @@ OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
 
 ## История изменений
 
-### v1.1.4 — LinkedMessage: sender необязателен и принимается строкой (см. `RELEASE_NOTES_v1.1.4.md`)
+### v1.1.4 — LinkedMessage: sender необязателен и принимается строкой (см. GitHub Release v1.1.4)
 
 - `LinkedMessage::$sender` теперь `?int`: MAX отдаёт `link.sender` строкой, и `Json::requiredInt()` ронял разбор ответа
   `POST /messages` с `link` (терялся `mid` отправленного сообщения) и всего апдейта вебхука с `message.link`
   (HTTP 400, бот не видел ответ пользователя). Числовая строка приводится к int, отсутствующее значение — `null`.
 
-### v1.1.2 — ContactVerifier: приём хеша в hex и base64 (см. `RELEASE_NOTES_v1.1.2.md`)
+### v1.1.2 — ContactVerifier: приём хеша в hex и base64 (см. GitHub Release v1.1.2)
 
 - `ContactVerifier::verify()` теперь принимает хеш в **hex или base64** — стандартном и URL-safe, с паддингом и без
   (поведение официального клиента `maxigo-client`). Раньше сравнивался только hex; если MAX присылал хеш в base64,
   валидный контакт из `request_contact`
   отклонялся («Не удалось проверить контакт»). Обратная совместимость не нарушена.
 
-### v1.1.1 — ContactVerifier: нормализация CRLF перед проверкой хеша (см. `RELEASE_NOTES_v1.1.1.md`)
+### v1.1.1 — ContactVerifier: нормализация CRLF перед проверкой хеша (см. GitHub Release v1.1.1)
 
 - `ContactVerifier::verify()` теперь нормализует и литеральные `\r\n`/`\n`, и реальные CRLF/CR-байты → LF. Раньше
   реальные CRLF после `json_decode` замена не находила, и валидный контакт из `request_contact`
   отклонялся («Не удалось проверить контакт»). Обратная совместимость не нарушена.
 
-### v1.1.0 — тип dialog_with_user: UserWithPhoto (см. `RELEASE_NOTES_v1.1.0.md`)
+### v1.1.0 — тип dialog_with_user: UserWithPhoto (см. GitHub Release v1.1.0)
 
-### v1.0.7 — sendAnswer: notification, fail-fast (см. `RELEASE_NOTES_v1.0.7.md`)
+### v1.0.7 — sendAnswer: notification, fail-fast (см. GitHub Release v1.0.7)
 
 - `ApiClient::sendAnswer()`: добавлен опциональный `?string $notification` (одноразовое уведомление).
 - API требует `message` или `notification`: вызов без обоих → `InvalidArgumentException` (раньше клиент слал `{}`
@@ -401,8 +401,8 @@ OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
 
 ### v1.0.6 — sendAnswer
 
-`{}`, фикс парсинга администраторов, глобальный rate limit 30 rps, синхронизация с max-openapi (см.
-`RELEASE_NOTES_v1.0.6.md`)
+`{}`, фикс парсинга администраторов, глобальный rate limit 30 rps, синхронизация с max-openapi (см. GitHub Release
+v1.0.6)
 
 - `ApiClient::sendAnswer()`: при `message === null` тело `{}` (раньше — 400 Empty request body).
 - `ChatAdminPermission`: добавлены deprecated-значения `post_edit_delete_message`, `edit_message`, `delete_message`
@@ -416,7 +416,7 @@ OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
 
 ### v1.0.3 — синхронизация с max-openapi, фикс парсинга Update
 
-**Ломающие изменения** (см. `RELEASE_NOTES_v1.0.3.md`):
+**Ломающие изменения** (см. GitHub Release v1.0.3):
 
 - `ApiClient::getPinnedMessage()`: ответ читается из поля `message` (было `pin`).
 - `ApiClient::sendBotAction()`: тело `{"action": ...}` (было `{"type": ...}`).
