@@ -10,7 +10,7 @@ readonly class LinkedMessage
 {
     public function __construct(
         public string $type,
-        public int $sender,
+        public ?int $sender,
         public string $mid,
         public ?string $chat = null,
     ) {
@@ -20,7 +20,7 @@ readonly class LinkedMessage
     {
         return new self(
             type: Json::requiredString($data, 'type'),
-            sender: Json::requiredInt($data, 'sender'),
+            sender: Json::tolerantInt($data, 'sender'),
             mid: Json::requiredString($data, 'mid'),
             chat: Json::string($data, 'chat'),
         );

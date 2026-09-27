@@ -114,6 +114,10 @@ phpstan.neon                  level max
 - Вложения (`Attachment`) — discriminated по `token`: 7 типов payload (+ image/photo).
 - JSON-кодирование/декодирование — только через `Internal\Json`, никогда напрямую `json_encode`/`json_decode`.
 - ID: `message_id` / `callback_id` / `messageId` — **строки**; `chat_id` / `user_id` — **int64**.
+- Отклонения API от спек-типов: внутри объекта `link` идентификаторы приходят **строками** (`sender: "277570130"`,
+  `chat: "117541872"`), хотя `sender` объявлен как `integer/int64`. Такие int64 читать через
+  `Json::tolerantInt()` (int или числовая строка → int, нет значения → `null`, мусор → исключение), а не через
+  `Json::requiredInt()`. `LinkedMessage::$sender` — `?int` (в спеке поле необязательное).
 
 ### Иерархия исключений
 
@@ -358,6 +362,8 @@ source .env && docker run --rm --network host \
 8. `mime_content_type()` требует `ext-fileinfo` (объявлено в `require` composer.json).
 9. Секреты/токены/vcf_info/callback payload — никогда в логи и коммиты.
 10. Версионирование — только git-тегами; `version` в composer.json не указывать.
+11. `message.link.sender` приходит строкой, а не int — при разборе нужен `Json::tolerantInt()`, иначе теряется
+    `mid` отправленного сообщения и отбрасываются апдейты с `link` (см. v1.1.4).
 
 ## 11. Чек-лист «production-grade» (самооценка при доработках)
 
