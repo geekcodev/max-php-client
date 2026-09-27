@@ -9,6 +9,7 @@ use GeekCo\MaxPhpClient\ApiClient;
 use GeekCo\MaxPhpClient\Dto\BotCommand;
 use GeekCo\MaxPhpClient\Dto\EditChatBody;
 use GeekCo\MaxPhpClient\Dto\NewMessageBody;
+use GeekCo\MaxPhpClient\Dto\NewMessageLink;
 use GeekCo\MaxPhpClient\Dto\PinMessageBody;
 use GeekCo\MaxPhpClient\Dto\Recipient;
 use GeekCo\MaxPhpClient\Enum\ChatAdminPermission;
@@ -694,6 +695,31 @@ final class ApiClientEndpointsTest extends TestCase
         $this->assertSame('chat_id=5&disable_link_preview=1', $request->getUri()->getQuery());
         $this->assertSame('{"text":"hi"}', (string) $request->getBody());
         $this->assertSame('hi', $message->body?->text);
+    }
+
+    #[Test]
+    public function it_sends_a_message_with_a_reply_link_when_the_api_returns_a_string_sender(): void
+    {
+        $this->http->next(fn ($request) => $this->json(['message' => [
+            'recipient' => ['chat_id' => 5],
+            'timestamp' => 1,
+            'link' => [
+                'type' => 'reply',
+                'sender' => '277570130',
+                'mid' => 'mid.1',
+                'chat' => '5',
+            ],
+            'body' => ['mid' => 'm2', 'seq' => 2, 'text' => 'hi'],
+        ]]));
+
+        $message = $this->client()->sendMessage(
+            new Recipient(chatId: 5),
+            NewMessageBody::create(text: 'hi', link: new NewMessageLink(type: 'reply', mid: 'mid.1')),
+        );
+
+        $this->assertSame('m2', $message->body?->mid);
+        $this->assertSame('mid.1', $message->link?->mid);
+        $this->assertSame(277570130, $message->link?->sender);
     }
 
     #[Test]

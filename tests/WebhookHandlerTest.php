@@ -61,6 +61,37 @@ final class WebhookHandlerTest extends TestCase
     }
 
     #[Test]
+    public function it_decodes_a_reply_update_with_a_numeric_string_link_sender(): void
+    {
+        $handler = new WebhookHandler('my-secret');
+        $request = (new HttpFactory())->createRequest('POST', 'https://example.com/hook')
+            ->withHeader('X-Max-Bot-Api-Secret', 'my-secret')
+            ->withBody((new HttpFactory())->createStream(json_encode([
+                'update_type' => 'message_created',
+                'timestamp' => 1,
+                'message' => [
+                    'sender' => ['user_id' => 2, 'first_name' => 'A', 'is_bot' => false, 'last_activity_time' => 1],
+                    'recipient' => ['chat_id' => 1, 'user_id' => 2],
+                    'timestamp' => 1,
+                    'link' => [
+                        'type' => 'reply',
+                        'sender' => '277570130',
+                        'mid' => 'mid.1',
+                        'chat' => '1',
+                    ],
+                    'body' => ['mid' => 'm2', 'seq' => 2, 'text' => 'ok'],
+                ],
+            ], JSON_THROW_ON_ERROR)));
+
+        $update = $handler->decode($request);
+
+        $this->assertInstanceOf(\GeekCo\MaxPhpClient\Dto\Update::class, $update);
+        $this->assertSame(277570130, $update->message?->link?->sender);
+        $this->assertSame('mid.1', $update->message?->link?->mid);
+        $this->assertSame('ok', $update->message?->body?->text);
+    }
+
+    #[Test]
     public function it_decodes_a_list_of_updates(): void
     {
         $handler = new WebhookHandler();

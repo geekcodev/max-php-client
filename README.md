@@ -372,6 +372,12 @@ OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
 
 ## История изменений
 
+### v1.1.4 — LinkedMessage: sender необязателен и принимается строкой (см. `RELEASE_NOTES_v1.1.4.md`)
+
+- `LinkedMessage::$sender` теперь `?int`: MAX отдаёт `link.sender` строкой, и `Json::requiredInt()` ронял разбор ответа
+  `POST /messages` с `link` (терялся `mid` отправленного сообщения) и всего апдейта вебхука с `message.link`
+  (HTTP 400, бот не видел ответ пользователя). Числовая строка приводится к int, отсутствующее значение — `null`.
+
 ### v1.1.2 — ContactVerifier: приём хеша в hex и base64 (см. `RELEASE_NOTES_v1.1.2.md`)
 
 - `ContactVerifier::verify()` теперь принимает хеш в **hex или base64** — стандартном и URL-safe, с паддингом и без

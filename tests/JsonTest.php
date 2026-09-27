@@ -52,6 +52,41 @@ final class JsonTest extends TestCase
     }
 
     #[Test]
+    public function it_reads_a_tolerant_int(): void
+    {
+        $this->assertNull(Json::tolerantInt([], 'n'));
+        $this->assertNull(Json::tolerantInt(['n' => null], 'n'));
+        $this->assertSame(5, Json::tolerantInt(['n' => 5], 'n'));
+        $this->assertSame(5, Json::tolerantInt(['n' => '5'], 'n'));
+        $this->assertSame(-5, Json::tolerantInt(['n' => '-5'], 'n'));
+        $this->assertSame(0, Json::tolerantInt(['n' => '0'], 'n'));
+        $this->assertSame(PHP_INT_MAX, Json::tolerantInt(['n' => (string) PHP_INT_MAX], 'n'));
+    }
+
+    #[Test]
+    #[DataProvider('nonIntegerValueProvider')]
+    public function it_rejects_a_non_integer_tolerant_value(mixed $value): void
+    {
+        $this->expectException(InvalidResponseException::class);
+
+        Json::tolerantInt(['n' => $value], 'n');
+    }
+
+    public static function nonIntegerValueProvider(): array
+    {
+        return [
+            'bool' => [true],
+            'float' => [5.5],
+            'array' => [[5]],
+            'empty string' => [''],
+            'not a number' => ['abc'],
+            'decimal string' => ['5.5'],
+            'padded string' => ['007'],
+            'overflow' => ['99999999999999999999'],
+        ];
+    }
+
+    #[Test]
     public function it_reads_required_string(): void
     {
         $this->assertSame('hi', Json::requiredString(['s' => 'hi'], 's'));

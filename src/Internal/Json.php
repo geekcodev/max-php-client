@@ -31,6 +31,27 @@ final class Json
         return $data[$key];
     }
 
+    /**
+     * Int, который API в некоторых объектах отдаёт строкой (int64 в `link`):
+     * числовая строка приводится к int, отсутствующее значение — null.
+     */
+    public static function tolerantInt(array $data, string $key): ?int
+    {
+        if (!isset($data[$key])) {
+            return null;
+        }
+
+        if (\is_int($data[$key])) {
+            return $data[$key];
+        }
+
+        if (\is_string($data[$key]) && ($int = filter_var($data[$key], FILTER_VALIDATE_INT)) !== false) {
+            return $int;
+        }
+
+        throw new InvalidResponseException(sprintf('Field "%s" must be an integer.', $key));
+    }
+
     public static function requiredString(array $data, string $key): string
     {
         if (!isset($data[$key]) || !\is_string($data[$key])) {

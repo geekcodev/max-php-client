@@ -522,6 +522,44 @@ final class DtoCoverageTest extends TestCase
     }
 
     #[Test]
+    public function it_reads_a_linked_message_with_a_numeric_string_sender(): void
+    {
+        $linked = LinkedMessage::fromArray([
+            'type' => 'reply',
+            'sender' => '277570130',
+            'mid' => 'mid.1',
+            'chat' => '117541872',
+        ]);
+
+        $this->assertSame(277570130, $linked->sender);
+        $this->assertSame('mid.1', $linked->mid);
+        $this->assertSame('117541872', $linked->chat);
+    }
+
+    #[Test]
+    public function it_reads_a_linked_message_without_a_sender(): void
+    {
+        $linked = LinkedMessage::fromArray(['type' => 'reply', 'mid' => 'mid.1']);
+
+        $this->assertNull($linked->sender);
+        $this->assertSame(['type' => 'reply', 'mid' => 'mid.1'], $linked->toArray());
+    }
+
+    #[Test]
+    public function it_reads_a_message_with_a_linked_message_sender_as_string(): void
+    {
+        $message = Message::fromArray([
+            'recipient' => ['chat_id' => 5],
+            'timestamp' => 1,
+            'link' => ['type' => 'reply', 'sender' => '277570130', 'mid' => 'mid.1'],
+            'body' => ['mid' => 'm2', 'seq' => 2, 'text' => 'hi'],
+        ]);
+
+        $this->assertSame(277570130, $message->link?->sender);
+        $this->assertSame('mid.1', $message->link?->mid);
+    }
+
+    #[Test]
     public function it_roundtrips_an_error_response(): void
     {
         $error = $this->roundtrip(['code' => 'bad', 'message' => 'm', 'error' => 'detail'], ErrorResponse::class);
