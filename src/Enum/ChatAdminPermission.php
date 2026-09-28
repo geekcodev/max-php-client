@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Enum;
 
+use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
+
 enum ChatAdminPermission: string
 {
     case ReadAllMessages = 'read_all_messages';
@@ -36,6 +38,16 @@ enum ChatAdminPermission: string
     public function isDeprecated(): bool
     {
         return in_array($this, self::deprecated(), true);
+    }
+
+    /**
+     * Единственное место разбора прав из ответа API: неизвестное значение — ошибка
+     * контракта, а не «ignore».
+     */
+    public static function fromValue(string $value): self
+    {
+        return self::tryFrom($value)
+            ?? throw new InvalidResponseException(sprintf('Unsupported admin permission "%s".', $value));
     }
 
     /**

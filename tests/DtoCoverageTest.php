@@ -43,6 +43,7 @@ use GeekCo\MaxPhpClient\Dto\SuccessResponse;
 use GeekCo\MaxPhpClient\Dto\Update;
 use GeekCo\MaxPhpClient\Dto\UpdatesResult;
 use GeekCo\MaxPhpClient\Dto\UploadResult;
+use GeekCo\MaxPhpClient\Dto\UploadedInfo;
 use GeekCo\MaxPhpClient\Dto\User;
 use GeekCo\MaxPhpClient\Dto\UserWithPhoto;
 use GeekCo\MaxPhpClient\Dto\VideoAttachmentPayload;
@@ -584,6 +585,27 @@ final class DtoCoverageTest extends TestCase
 
         $this->assertSame(['url' => 'https://u', 'token' => 't'], $result);
         $this->assertNull(UploadResult::fromArray(['url' => 'https://u'])->token);
+    }
+
+    #[Test]
+    public function it_roundtrips_uploaded_info(): void
+    {
+        $info = UploadedInfo::fromArray(['url' => 'https://u', 'token' => 't']);
+
+        $this->assertInstanceOf(UploadResult::class, $info);
+        $this->assertSame('https://u', $info->url);
+        $this->assertSame('t', $info->token);
+        $this->assertSame(['url' => 'https://u', 'token' => 't'], $info->toArray());
+        $this->assertNull(UploadedInfo::fromArray(['url' => 'https://u'])->token);
+    }
+
+    #[Test]
+    public function it_rejects_uploaded_info_without_an_url(): void
+    {
+        $this->expectException(InvalidResponseException::class);
+        $this->expectExceptionMessage('Field "url" must be a string.');
+
+        UploadedInfo::fromArray(['token' => 't']);
     }
 
     #[Test]

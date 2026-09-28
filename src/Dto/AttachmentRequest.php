@@ -5,8 +5,15 @@ declare(strict_types=1);
 namespace GeekCo\MaxPhpClient\Dto;
 
 use GeekCo\MaxPhpClient\Enum\AttachmentType;
+use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
 use GeekCo\MaxPhpClient\Internal\Json;
 
+/**
+ * Вложение при отправке сообщения. Значение `payload` зависит от `type`: `token`
+ * и `url` — для загруженного медиа, `rows` — для инлайн-клавиатуры, `code` — для
+ * стикера, `latitude` и `longitude` (по спецификации — на верхнем уровне) — для
+ * локации.
+ */
 readonly class AttachmentRequest
 {
     /**
@@ -17,6 +24,9 @@ readonly class AttachmentRequest
         public ?string $token = null,
         public ?string $url = null,
         public ?array $rows = null,
+        public ?string $code = null,
+        public ?float $latitude = null,
+        public ?float $longitude = null,
     ) {
     }
 
@@ -28,12 +38,18 @@ readonly class AttachmentRequest
         ?string $token = null,
         ?string $url = null,
         ?array $rows = null,
+        ?string $code = null,
+        ?float $latitude = null,
+        ?float $longitude = null,
     ): self {
         return new self(
             type: $type,
             token: $token,
             url: $url,
             rows: $rows,
+            code: $code,
+            latitude: $latitude,
+            longitude: $longitude,
         );
     }
 
@@ -51,10 +67,13 @@ readonly class AttachmentRequest
 
         return new self(
             type: Json::enum(AttachmentType::class, $data, 'type')
-                ?? throw new \GeekCo\MaxPhpClient\Exception\InvalidResponseException('Field "type" must be a string.'),
+                ?? throw new InvalidResponseException('Field "type" must be a string.'),
             token: Json::string($payload, 'token'),
             url: Json::string($payload, 'url'),
             rows: $rows,
+            code: Json::string($payload, 'code'),
+            latitude: Json::float($data, 'latitude'),
+            longitude: Json::float($data, 'longitude'),
         );
     }
 
@@ -66,6 +85,7 @@ readonly class AttachmentRequest
         $payload = array_filter([
             'token' => $this->token,
             'url' => $this->url,
+            'code' => $this->code,
             'buttons' => $this->rows === null
                 ? null
                 : array_map(static fn (InlineKeyboardButtonRow $row): array => $row->toArray(), $this->rows),
@@ -74,6 +94,8 @@ readonly class AttachmentRequest
         return array_filter([
             'type' => $this->type->value,
             'payload' => $payload === [] ? null : $payload,
+            'latitude' => $this->latitude,
+            'longitude' => $this->longitude,
         ], static fn (mixed $value): bool => $value !== null);
     }
 }

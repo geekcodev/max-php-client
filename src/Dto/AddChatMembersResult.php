@@ -6,6 +6,9 @@ namespace GeekCo\MaxPhpClient\Dto;
 
 use GeekCo\MaxPhpClient\Internal\Json;
 
+/**
+ * @deprecated The method that returns it is gone from the specification; removed in v2.0.0.
+ */
 readonly class AddChatMembersResult
 {
     /**

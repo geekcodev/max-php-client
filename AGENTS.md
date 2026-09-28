@@ -1,8 +1,9 @@
 # AGENTS.md
 
 > Проектный контекст и рабочие правила для разработчиков и ИИ-агентов (включая opencode).
-> Читай этот файл **целиком** в начале работы — он заменяет перечитывание спецификации и задаёт
-> обязательный процесс проверок. Пользовательскую документацию (быстрый старт, примеры, интеграция
+> Читай этот файл **целиком** в начале работы — он задаёт обязательный процесс проверок. Справочник контрактов
+> **API MAX** (спека, эндпоинты, enums, DTO, лимиты) вынесен в `docs/api-reference.md` — читай его перед правками
+> DTO, enum, транспорта, вебхуков и вызовов API. Пользовательскую документацию (быстрый старт, примеры, интеграция
 > в фреймворки) смотри в `README.md`.
 
 ## 1. О проекте
@@ -11,31 +12,53 @@
   Bot API** (мессенджер MAX, https://max.ru). Цель — production-grade ядро, которое переиспользуется в интеграционных
   модулях: фреймворк-мосты (Laravel, Symfony) делаются **отдельными пакетами** поверх этого клиента и от ядра не
   зависят.
-- **Статус.** Выпущена **v1.0.0**: git-тег `v1.0.0`, GitHub Release, публикация на **Packagist**
-  (`geekcodev/max-php-client`). `version` в `composer.json` **не указывается** — Packagist берёт версию из тегов.
+- **Статус.** Последний выпущенный релиз — **v1.1.3** (тег `v1.1.3`, GitHub Release, Packagist
+  `geekcodev/max-php-client`). Актуальную версию всегда уточняй по `git tag --sort=-v:refname | head -1` и по
+  `git log --oneline -10`, а не по этому файлу. Готовые к выпуску правки v1.1.4 и v1.1.5 лежат в `dev` без тега, их
+  описания — в `.agents/release/`.
 - **Лицензия.** MIT (c) 2026 Evgeny Semenov.
-- **Язык.** Рабочий язык общения с пользователем — **русский**.
+- **Язык.** Рабочий язык общения с пользователем, все md-файлы, описания и журнал — **русский**.
 
-## 2. Ветки и состояние git
+## 2. Ветки, git и коммиты
 
-- `main` — стабильная, соответствует выпущенным релизам (сейчас v1.0.0).
-- `dev` — рабочая ветка; изменения сначала здесь.
-- Релизный процесс: PR `dev → main` → тег `vX.Y.Z` → GitHub Release → автопубликация на Packagist.
-- База истории: `7929124 chore: create max api php client` → `8ef7397 fix: README.md and CI workflow` →
-  `6ba08ce fix(ci): build image with xdebug and set composer root version` (вершина `dev`).
-- `.env` — untracked (в `.gitignore`): хранит `MAX_API_TOKEN`, `MAX_WEBHOOK_SECRET`. **Никогда не коммитить**
-  и не логировать значения. Коммиты и push делает пользователь (в окружении нет credential.helper/gh) — без явного
-  запроса не коммить.
+- `main` — стабильная, соответствует выпущенным релизам. `dev` — рабочая ветка; изменения сначала здесь.
+- Релизный процесс: PR `dev → main` → тег `vX.Y.Z` → GitHub Release → автопубликация на Packagist. Тег ставится только
+  на `main`.
+- `.env` — untracked (в `.gitignore`): хранит `MAX_API_TOKEN`, `MAX_WEBHOOK_SECRET`. **Никогда не коммитить** и не
+  логировать значения.
+- Коммиты и push делает пользователь (в окружении нет credential.helper/gh) — **не коммить и не пушить без явного
+  запроса**.
+- **Различай «текст коммита» и «коммит».** Если пользователь просит «напиши текст/сообщение коммита» — верни краткий
+  HEAD (одна строка subject) на английском языке по [Conventional Commits](https://www.conventionalcommits.org/):
+  `тип` (`feat`, `fix`, `refactor`, `style`, `docs`, `test`, `chore`, `ci`, ...) + `scope` + краткое описание, без тела,
+  **без** выполнения `git commit`. Если просит «закоммить» / «сделай коммит» — тогда выполняй реальный `git commit` с
+  таким коротким сообщением. Никогда не коммить по умолчанию и не делай `git add .` без проверки `git status` и
+  `git diff`.
+- Перед завершением релиза проверь, что нет мусора в рабочем дереве: `git status --short` должен быть чистым. Заведённые
+  рабочие каталоги (`.agents/`) в `.gitignore` — это ожидаемо, а не мусор.
 
 ## 3. Правила для ИИ-агентов
 
-1. В начале работы прочитай `AGENTS.md` и `README.md`.
+1. В начале работы прочитай `AGENTS.md`; перед правками API-контрактов — `docs/api-reference.md`.
 2. **Не коммить и не пушить без явного запроса пользователя.**
-3. Перед завершением любой задачи, менявшей код, прогони обязательный Gate (раздел 7) целиком. Результаты не подменяй;
+3. Перед завершением любой задачи, менявшей код, прогони обязательный Gate (раздел 8) целиком. Результаты не подменяй;
    недоступный шаг честно указывай в отчёте, а не пропускай молча.
-4. Не выдумывай сигнатуры и эндпоинты: сверяйся с разделом 9 или спецификацией `max-openapi`.
+4. Не выдумывай сигнатуры и эндпоинты: сверяйся с `docs/api-reference.md` или спецификацией `max-openapi`
+   (https://github.com/geekcodev/max-openapi). Прод-поведение важнее спеки в случаях, перечисленных в
+   `docs/api-reference.md`, раздел 9.
 5. Если для задачи чего-то не хватает (токен, сеть, контейнер) — скажи об этом, а не упрощай задачу молча.
 6. Ответы — краткие и по делу; в коде — без лишних комментариев.
+7. **Расхождение, найденное в интеграционном проекте, — регрессия этого пакета.** Зафиксируй его как отдельную задачу
+   (тест + фикс + релиз), а не как локальный обход в стороннем проекте. Три таких расхождения уже найдены интеграторами
+   (v1.1.1 — CRLF, v1.1.2 — base64, v1.1.3 — raw `vcf_info`); схема — `docs/api-reference.md`, раздел 9.
+8. **Веди `.agents`** (раздел 5): после каждой содержательной сессии обнови `journals/JOURNAL.md` и добавь файл сессии;
+   многошаговые задачи фиксируй в `plans/`; правки релиза — в `release/`.
+9. **Соблюдай OWASP Top 10** (раздел 7) при написании кода: секреты сравниваются только `hash_equals`, url из вебхуков и
+   подписок проверяются на `https://` и домен, вход ограничивается по размерам и типам, секреты и payload не попадают в
+   логи.
+10. **Язык — русский.** Все md-файлы, комментарии в коде, описания, планы и журнал пиши по-русски, информативно, без
+    смешения языков и без декоративных артефактов (значков, условных обозначений, символов непонятного происхождения).
+    Допустимы только русский и английский. Идентификаторы в коде, имена API-полей и термины спеки остаются как есть.
 
 ## 4. Структура репозитория
 
@@ -43,6 +66,7 @@
 src/                          клиент, DTO, enums, исключения, сервисные компоненты
 tests/                        PHPUnit: unit-тесты + Integration/SmokeTest (группа integration)
 examples/                     рабочие примеры ботов + run.sh (docker-запуск без локального PHP)
+docs/api-reference.md         справочник API MAX: спека, эндпоинты, enums, DTO, лимиты, вебхуки
 scripts/check-coverage.php    порог покрытия строк (по умолчанию 95%)
 .github/workflows/ci.yml      CI: quality + integration
 Dockerfile                    PHP 8.4, опциональный Xdebug (ARG INSTALL_XDEBUG=false)
@@ -54,9 +78,37 @@ phpstan.neon                  level max
 .env.example                  MAX_API_TOKEN, MAX_WEBHOOK_SECRET (эталон имён переменных)
 ```
 
-`composer.lock`, `.phpunit.cache/`, `build/`, `vendor/` — в `.gitignore` (для библиотеки lock не коммитится).
+`composer.lock`, `.phpunit.cache/`, `build/`, `vendor/`, `.agents/` — в `.gitignore` (для библиотеки lock не коммитится;
+`.agents/` — локальная рабочая память, наружу не отдаётся).
 
-## 5. Архитектура и ключевые контракты
+## 5. Рабочие каталоги `.agents` и `docs`
+
+`.agents/` — **локальный** каталог (в `.gitignore`): планы, журнал сессий и описания релизов. Он не попадает в
+репозиторий и в дистрибутив Packagist, поэтому туда не кладут то, что должно быть публичным: для внешних потребителей
+истина — `README.md`, `docs/api-reference.md` и описания в GitHub Release.
+
+| Каталог                 | Содержимое                                                                |
+|-------------------------|---------------------------------------------------------------------------|
+| `journals/JOURNAL.md`   | Карта сессий: дата · файл · теги · краткое описание                       |
+| `journals/sessions/`    | Файлы сессий `YYYY-MM-DD-тема.md`: frontmatter с тегами, тело ≤2 КБ       |
+| `plans/`                | Планы многошаговых задач, статус: `в работе` или `завершён`; не удаляются |
+| `release/`              | `RELEASE_NOTES_vX.Y.Z.md` — описание каждой версии                        |
+| `docs/` (в репозитории) | Публичная документация; карта документов — здесь, в разделе 4             |
+
+### Правила ведения
+
+- **Файл сессии** — компактный отчёт: frontmatter (`tags`, `date`), затем секции `Проблема` / `Решение` / `Тесты` /
+  `Нюансы` / `Gate`. Обязательная строка о Gate: что именно прогналось и с каким результатом. Секреты, токены,
+  `vcf_info`, payload колбэков и прод-ответы в журнал не пишутся.
+- **`JOURNAL.md`** — одна строка на сессию, самые новые сверху; формат строки: `дата · файл · теги · описание`.
+- **План** — для задач из трёх и более шагов или требующих исследования (например, синхронизация со спекой): цель,
+  исследование, реализация, тесты, нюансы, статус. Готовый план не удаляется, а помечается завершённым.
+- **Release notes** — пишутся в `.agents/release/RELEASE_NOTES_vX.Y.Z.md` при выпуске версии; значимые пункты
+  дублируются в README (раздел «История изменений») и в GitHub Release.
+- Если правка изменила поведение публичного API или контракт с интеграторами — обнови `README.md` и
+  `docs/api-reference.md` в той же сессии.
+
+## 6. Архитектура и ключевые контракты
 
 ### Слои
 
@@ -71,8 +123,8 @@ phpstan.neon                  level max
 | Upload      | `Uploader`                                        | Multipart-загрузка медиа (требует `ext-fileinfo`)                                  |
 | Security    | `ContactVerifier`, `WebAppDataValidator`          | Верификация контакта по кнопке `request_contact`; стартовых данных мини-приложения |
 | Internal    | `Internal\Json`                                   | Единственное место работы с JSON (кодирование/декодирование с исключениями)        |
-| Dto         | `src/Dto/*` (44 класса)                           | Типизированные модели запросов и ответов                                           |
-| Enum        | `src/Enum/*` (8)                                  | Строго типизированные значения                                                     |
+| Dto         | `src/Dto/*` (54 класса)                           | Типизированные модели запросов и ответов                                           |
+| Enum        | `src/Enum/*` (10)                                 | Строго типизированные значения                                                     |
 | Exception   | `src/Exception/*` (7)                             | Иерархия типизированных ошибок                                                     |
 
 ### Контракты компонентов
@@ -81,6 +133,10 @@ phpstan.neon                  level max
   `$uriFactory` (PSR-17), `$accessToken` (обязательный), `$baseUri`, `$retryStrategy`, `$rateLimiter` (per-chat 2
   req/s), `$globalRateLimiter` (по умолчанию 30 req/s). Внутри собирает `HttpClient` (transport + retry + глобальный
   rate limit) и `Uploader`. Используется во всех примерах (`examples/bootstrap.php`).
+- **Комментарии** — `getComments()`, `sendComment()`, `editComment()`, `deleteComment()`, `getComment()`: работают с
+  сообщениями в каналах, где у бота есть право `read_all_messages`; `comment_id` = `mid` комментария, передаётся
+  query-параметром; апдейты `comment_created`/`comment_edited` разбираются в `Update::$comment` (`CommentMessage`), а
+  `Update::$message` остаётся `null`.
 - **`WebhookHandler::decode(): Update|list<Update>`** — критичный нюанс: ответ может быть **одним объектом**
   **или** списком. Итерация без проверки ломает foreach:
   ```php
@@ -109,15 +165,17 @@ phpstan.neon                  level max
 ### Соглашения DTO
 
 - Все DTO — `final readonly`, типизированные nullable-поля, валидация типов в `fromArray()`.
-- `toArray()` — для запросов. Конструкторы `create()` есть только у `NewMessageBody`, `EditChatBody`,
+- `toArray()` — для запросов. Конструкторы `create()` есть только у `NewMessageBody`, `NewCommentBody`, `EditChatBody`,
   `AttachmentRequest`, `PinMessageBody`.
-- Вложения (`Attachment`) — discriminated по `token`: 7 типов payload (+ image/photo).
+- Вложения (`Attachment`) — discriminated по `token`: 7 типов payload (+ image). Координаты локации в спеке лежат на
+  верхнем уровне вложения, но вложенная форма тоже разбирается.
 - JSON-кодирование/декодирование — только через `Internal\Json`, никогда напрямую `json_encode`/`json_decode`.
 - ID: `message_id` / `callback_id` / `messageId` — **строки**; `chat_id` / `user_id` — **int64**.
 - Отклонения API от спек-типов: внутри объекта `link` идентификаторы приходят **строками** (`sender: "277570130"`,
-  `chat: "117541872"`), хотя `sender` объявлен как `integer/int64`. Такие int64 читать через
-  `Json::tolerantInt()` (int или числовая строка → int, нет значения → `null`, мусор → исключение), а не через
-  `Json::requiredInt()`. `LinkedMessage::$sender` — `?int` (в спеке поле необязательное).
+  `chat: "117541872"`), хотя `sender` объявлен как `integer/int64` (а в новой спеке — объект `User`). Такие int64 читать
+  через `Json::tolerantInt()` (int или числовая строка → int, нет значения → `null`, мусор → исключение), а не через
+  `Json::requiredInt()`. `LinkedMessage::$sender` — `?int` (в спеке поле необязательное), `LinkedMessage::$senderUser` —
+  `?User` для новой формы спеки. Полный список зафиксированных расхождений — `docs/api-reference.md`, раздел 9.
 
 ### Иерархия исключений
 
@@ -125,16 +183,23 @@ phpstan.neon                  level max
 `InvalidResponseException`, `NetworkException`, `RateLimitException`. Для бизнес-обработки ловить
 `MaxApiException`. В `README.md` — раздел «Ошибки» с таблицей кодов и исключений.
 
-## 6. Соглашения по коду
+## 7. Соглашения по коду
+
+| Принцип              | Применение к этому пакету                                                                                                |
+|----------------------|--------------------------------------------------------------------------------------------------------------------------|
+| **SOLID**            | Один класс — одна ответственность; расширение через PSR-интерфейсы и передачу зависимостей в `ApiClient::create()`       |
+| **DRY**              | JSON только через `Internal\Json`; общие DTO (`UserWithPhoto`, `BotInfo`, `ChatMember`) переиспользуются, не дублируются |
+| **KISS**             | Никаких магических абстракций и собственных DI-контейнеров; публичный API — простые методы клиента                       |
+| **TDD**              | Новый компонент сначала покрывается unit-тестом; HTTP-слой — через `tests/Support/MockHttpClient` (PSR-18)               |
+| **BC-совместимость** | Публичное API библиотеки: не удалять и не менять сигнатуры в patch-релизе; новое — через необязательные параметры        |
+| **Production-grade** | Gate (раздел 8), покрытие ≥95%, fail-closed на секретах, никаких глобальных состояний                                    |
 
 - PHP **8.4**, `declare(strict_types=1)` во всех файлах, PSR-12 (php-cs-fixer), PHPStan **level max**.
 - Namespace `GeekCo\MaxPhpClient` (тесты `GeekCo\MaxPhpClient\Tests`), PSR-4.
-- SOLID / DRY / KISS: единая ответственность, открытость к расширению, без избыточной абстракции и дублирования.
-  PSR-стандарты (PSR-4/7/17/18) — там, где уместно.
 - Не добавлять комментарии без необходимости. `@codeCoverageIgnore` — только для defensive-веток, недостижимых в тестах
   (например, `file_get_contents()` вернул `false`).
-- Тесты обязательны для нового кода: unit на компоненты; HTTP-слой — через `tests/Support/MockHttpClient`
-  (PSR-18). Интеграционные — read-only, группа `integration`, без токена `markTestSkipped` (не падать).
+- Тесты обязательны для нового кода. Интеграционные — read-only, группа `integration`, без токена `markTestSkipped`
+  (не падать).
 - Новые файлы в `examples/` — со смысловым именем, с `bootstrap.php`, без токенов в коде.
 
 ### OWASP Top 10 (обязательно при написании кода)
@@ -146,7 +211,7 @@ phpstan.neon                  level max
 - Корректное кодирование в PSR-7; никаких конкатенаций URL (A03).
 - Ограничение входных данных по размерам и типам.
 
-## 7. Локальная разработка и обязательный Gate
+## 8. Локальная разработка и обязательный Gate
 
 PHP и Composer на хосте **не установлены** — весь запуск через Docker:
 
@@ -158,6 +223,7 @@ docker compose run --rm app composer run format        # php-cs-fixer: авто-
 docker compose run --rm app vendor/bin/phpstan analyse # level max
 docker compose run --rm app vendor/bin/phpunit         # unit-тесты
 docker compose run --rm app composer run coverage      # тесты + проверка покрытия ≥95%
+docker compose run --rm app composer audit             # уязвимости зависимостей → 0 уязвимых
 ```
 
 Запуск примеров без локального PHP:
@@ -191,163 +257,23 @@ source .env && docker run --rm --network host \
 3. **Статика**: `vendor/bin/phpstan analyse` → 0 ошибок.
 4. **Тесты**: `vendor/bin/phpunit` → все зелёные (failOnRisky/failOnWarning).
 5. **Покрытие**: `composer run coverage` → ≥95% строк.
+6. **Аудит зависимостей**: `composer audit` → 0 уязвимых пакетов.
 
-Все шаги обязательны. Если шаг недоступен в окружении — сообщить пользователю и указать в отчёте.
+Все шаги обязательны. Если шаг недоступен в окружении (нет сети для `composer audit`, нет обращения к API) — сообщить
+пользователю и указать в отчёте и в файле сессии.
 
-## 8. CI/CD и релизы
+## 9. CI/CD и релизы
 
-- **Job `quality`**: сборка образа с Xdebug (`--build-arg INSTALL_XDEBUG=true`), lint, phpstan, phpunit + coverage gate.
-  Job-level `env: IMAGE: max-php-client:ci`.
+- **Job `quality`**: сборка образа с Xdebug (`--build-arg INSTALL_XDEBUG=true`), lint, phpstan, phpunit + coverage gate,
+  `composer audit`. Job-level `env: IMAGE: max-php-client:ci`.
 - **Job `integration`**: смоук-тесты реального API; без `MAX_API_TOKEN` — шаги пропускаются, не падают (секрет
   передаётся только через job-level `env`, `secrets` в `if` на уровне job запрещены GitHub Actions).
 - Ключевые детали workflow: `-e COMPOSER_ROOT_VERSION=dev-main` во всех шагах (обход отсутствия git-метаданных в
   volume), `-e XDEBUG_MODE=coverage` для генерации отчёта, кэш `vendor` по `composer.json`.
-- **Релиз**: merge PR `dev → main` → `git tag vX.Y.Z && git push origin vX.Y.Z` → GitHub Release из тега → Packagist
-  (автообновление по webhook). Тег ставится только на `main`.
-
-## 9. Источник истины (API MAX)
-
-Спецификация: **https://github.com/geekcodev/max-openapi** (OpenAPI 3.1.0). Сервер:
-**https://platform-api2.max.ru**.
-
-### Процесс обновления при изменениях спеки
-
-При новом коммите в `max-openapi` — синхронизировать ядро по шагам:
-
-1. Скачать свежую спеку и сгенерировать дифф против последнего разобранного коммита:
-   `git clone https://github.com/geekcodev/max-openapi /tmp/opencode/max-openapi` → `git diff` двух коммитов.
-2. Пройтись по диффу: расхождения «спека vs код» → правки в `src/`/`tests/` + документация → обязательный Gate (раздел
-   7).
-3. Отложенное проверять реальным API через интеграционный смоук (`--group integration`, токен `MAX_API_TOKEN`), а не
-   выдумывать payload/формат.
-4. **Проверено и покрыто кодом (при новых диффах НЕ трогать повторно):**
-   `ErrorResponse.code` — string; инлайн-клавиатура `payload.buttons`; `web_app`/`contact_id`; contact-вложение
-   (`ContactAttachmentPayload`); nullable `User.last_activity_time`/`Update.user`; `getMessages` `from`/`to`;
-   `Attachment` без discriminator (маппинг по `type`); `NewMessageBody` без tg-специфики; deprecated-права
-   администраторов (см. §5 Enums); `join_time` в миллисекундах; rate limits 30 rps + 2 req/s (§9).
-5. Версионирование — только git-тегами; правки каждой синхронизации описывать в `RELEASE_NOTES_vX.Y.Z.md`.
-
-### Аутентификация
-
-- Заголовок `Authorization: <access_token>` — **без** `Bearer ` префикса, токен голым.
-- Передача токена через query-параметры **не поддерживается**.
-
-### Критичные оговорки
-
-- Домен **`platform-api2.max.ru`** (НЕ `platform-api.max.ru`).
-- Нужен сертификат Минцифры в доверенных (для локальных сред — кастомный CA).
-- HTTP-вебхуки не поддерживаются — только HTTPS.
-- Long Polling ограничен по скорости и хранению событий — **не для production**.
-- `GET /chats` **deprecated с июня 2026** — подписка на `bot_added`/`bot_started` + хранение chat_id у себя.
-- `type=photo` deprecated → `type=image`.
-
-### Rate limits
-
-- **Глобальный лимит: 30 rps** на `platform-api2.max.ru` (все запросы).
-- Отправка/редактирование/удаление сообщений и ответы на callback: **макс. 2/сек на диалог/чат/канал**.
-- Клиент применяет локально оба лимита: глобальный token bucket 30 req/s (ожидание в `HttpClient`, настраивается опцией
-  `global_rate_limiter` в `ApiClient::create()`) и per-chat 2 req/s (`RateLimiter`, исключение
-  `RateLimitException` при исчерпании).
-
-### Загрузка медиа (`POST /uploads`)
-
-- `type` — **query-параметром**; ответ: `{url, token}`.
-- Домены: `file` → `https://fu.oneme.ru`, `image` → `https://iu.oneme.ru`, `video`/`audio` →
-  `https://vu.okcdn.ru`.
-- Лимиты: image 50 МБ или 7680×7680 px; video 250 МБ; audio 256 МБ или 60 мин; file 4 ГБ.
-- После загрузки **ждать перед отправкой** сообщения, иначе `attachment.not.ready` — ретрай с экспоненциальной
-  задержкой.
-
-### Вебхуки (`POST /subscriptions`)
-
-- Модель: событие → POST на webhook с объектом `Update`; проверка TLS; заголовок `X-Max-Bot-Api-Secret`
-  (если задан `secret`); эндпоинт обязан ответить HTTP 200 за 30 сек; повторы 60с→150с→375с→… (10 попыток за ~8 часов);
-  при неуспехе 8 ч — автоотписка.
-- Требования: HTTPS :443, доверенный CA (или Минцифры), без самоподписных, домен = CN/SAN, полная цепочка.
-- `secret`: 5–256 символов, `[a-zA-Z0-9_-]`.
-- Активная webhook-подписка отключает Long Polling.
-
-### Ключевые схема-соглашения
-
-- Все timestamp — **Unix в миллисекундах** (`last_activity_time`, `timestamp`, `last_event_time`, `join_time`).
-- Пагинация — `marker` (int64, nullable) + `count`.
-- `message_id` / `callback_id` / `messageId` (path) — строки; `chat_id` / `user_id` — int64.
-- Ошибки: `ErrorResponse {code, message, error?}`. HTTP-коды: 400, 401, 404, 405, 429, 503.
-- Успех операций: `SuccessResponse {success, message?}`.
-- Контакт по кнопке `request_contact`: `hash = HMAC-SHA256(access_token, vcf_info)`; в `vcf_info` `\r\n`
-  заменять на реальные переносы строк.
-
-### Эндпоинты
-
-| Метод  | Путь                                      | operationId          | Описание                                                                                                                  |
-|--------|-------------------------------------------|----------------------|---------------------------------------------------------------------------------------------------------------------------|
-| GET    | `/me`                                     | `getMe`              | Инфо о боте (BotInfo)                                                                                                     |
-| PATCH  | `/me/commands`                            | `editBotCommands`    | Команды бота (макс 32; `[]` — удалить все)                                                                                |
-| GET    | `/chats`                                  | `getChats`           | **DEPRECATED**                                                                                                            |
-| GET    | `/chats/{chatId}`                         | `getChat`            | Инфо о чате/канале                                                                                                        |
-| PATCH  | `/chats/{chatId}`                         | `editChat`           | title/icon/pin/notify                                                                                                     |
-| POST   | `/chats/{chatId}/actions`                 | `sendBotAction`      | SenderAction                                                                                                              |
-| GET    | `/chats/{chatId}/pin`                     | `getPinnedMessage`   | message или null                                                                                                          |
-| PUT    | `/chats/{chatId}/pin`                     | `pinMessage`         | body: message_id, notify?                                                                                                 |
-| DELETE | `/chats/{chatId}/pin`                     | `unpinMessage`       | Открепление                                                                                                               |
-| GET    | `/chats/{chatId}/members/me`              | `getBotMembership`   | Членство бота (ChatMember)                                                                                                |
-| DELETE | `/chats/{chatId}/members/me`              | `removeBotFromChat`  | Удаление бота                                                                                                             |
-| GET    | `/chats/{chatId}/members/admins`          | `getChatAdmins`      | Список админов + marker                                                                                                   |
-| POST   | `/chats/{chatId}/members/admins`          | `addChatAdmin`       | Назначить админа (PUT-семантика)                                                                                          |
-| DELETE | `/chats/{chatId}/members/admins/{userId}` | `removeChatAdmin`    | Снять админа                                                                                                              |
-| GET    | `/chats/{chatId}/members`                 | `getChatMembers`     | Участники; query: user_ids?, marker?, count?(1-100, default 20)                                                           |
-| POST   | `/chats/{chatId}/members`                 | `addChatMembers`     | body: user_ids (макс 100); ответ + failed_user_ids/details                                                                |
-| DELETE | `/chats/{chatId}/members`                 | `removeChatMember`   | query: user_id (обяз.), block?(bool, default false)                                                                       |
-| GET    | `/subscriptions`                          | `getSubscriptions`   | Список webhook-подписок                                                                                                   |
-| POST   | `/subscriptions`                          | `createSubscription` | body: url(https), update_types?, secret?                                                                                  |
-| DELETE | `/subscriptions`                          | `deleteSubscription` | query: url (обяз.)                                                                                                        |
-| GET    | `/updates`                                | `getUpdates`         | Long Polling; query: limit(1-1000, d100), timeout(0-90, d30), marker?, types?                                             |
-| POST   | `/uploads`                                | `uploadMedia`        | query: type (обяз.); ответ {url, token?}                                                                                  |
-| GET    | `/messages`                               | `getMessages`        | query: chat_id? message_ids?(csv), from?, to?, count?(1-100, d50)                                                         |
-| POST   | `/messages`                               | `sendMessage`        | query: user_id? chat_id? (одно из), disable_link_preview?; body: NewMessageBody                                           |
-| PUT    | `/messages`                               | `editMessage`        | query: message_id (обяз.); body: NewMessageBody                                                                           |
-| DELETE | `/messages`                               | `deleteMessage`      | query: message_id (обяз.)                                                                                                 |
-| GET    | `/messages/{messageId}`                   | `getMessageById`     | path: messageId (строка, `[a-zA-Z0-9_-]+`)                                                                                |
-| GET    | `/videos/{videoToken}`                    | `getVideoInfo`       | Инфо о видео (VideoInfo)                                                                                                  |
-| POST   | `/answers`                                | `sendAnswer`         | query: callback_id (обяз.); body: {message?: NewMessageBody, notification?: string} (message или notification обязателен) |
-
-### Enums
-
-- **ChatType**: `chat`, `channel`, `dialog`
-- **ChatStatus**: `active`, `removed`, `left`, `closed`
-- **SenderAction**: `typing_on`, `sending_photo`, `sending_video`, `sending_audio`, `sending_file`
-- **UploadType**: `image`, `video`, `audio`, `file`
-- **TextFormat**: `markdown`, `html`
-- **ChatAdminPermission**: `read_all_messages`, `add_remove_members`, `add_admins`, `change_chat_info`,
-  `pin_message`, `write`, `can_call`, `edit_link`, `edit`, `delete`, `view_stats`; deprecated (только в ответе API, не
-  выдавать): `post_edit_delete_message`, `edit_message`, `delete_message`
-- **UpdateType**: `bot_added`, `bot_started`, `bot_stopped`, `bot_removed`, `chat_title_changed`,
-  `dialog_cleared`, `dialog_muted`, `dialog_unmuted`, `dialog_removed`, `message_callback`,
-  `message_created`, `message_edited`, `message_removed`, `user_added`, `user_removed`
-- **AttachmentType**: `image`, `video`, `audio`, `file`, `sticker`, `inline_keyboard`, `location`, `share`
-- **ButtonType**: `callback`, `link`, `request_contact`, `request_geo_location`, `open_app`, `message`,
-  `clipboard`
-
-### Ключевые объекты (DTO)
-
-- `User` (user_id int64, first_name, last_name?, username?, is_bot, last_activity_time, name[deprecated])
-- `UserWithPhoto` (+ description?, avatar_url?, full_avatar_url?)
-- `BotInfo` = UserWithPhoto + commands?
-- `ChatMember` = UserWithPhoto + last_access_time, is_owner, is_admin, join_time, permissions?, alias?
-- `Chat` (chat_id, type, status, title?, icon?, last_event_time, participants_count, owner_id?, participants?,
-  is_public, link?, description?, dialog_with_user?, messages_count?, pinned_message?)
-- `Message` (sender?, recipient, timestamp, link?, body?, stat?, url?)
-- `MessageBody` (mid, seq, text?, attachments?, caption?, format)
-- `NewMessageBody` (text?, attachments?, link?, notify?, format) — attachments: `null`=без изменений,
-  `[]`=удалить все
-- `Attachment` (type, payload?) — payload discriminated по `token`, oneOf из 7 типов payload
-- `AttachmentRequest` (type, payload{token?, url?, rows?})
-- `InlineKeyboardButton` (type, text, payload?, url?, intent?, app_data?) — макс 210 кнопок / 30 рядов / 7 в ряду (3 для
-  link/open_app/request_geo_location/request_contact)
-- `Update` (update_type, timestamp, chat_id, user|null, is_channel?, message?, callback{callback_id, payload?,
-  message}?, user_locale?, title?, payload?, muted_until?, message_id?, user_id?, inviter_id?, admin_id?)
-- `Subscription` (url, update_types?)
-- `ErrorResponse` (code, message, error?)
+- **Релиз**: описание версии в `.agents/release/RELEASE_NOTES_vX.Y.Z.md` → merge PR `dev → main` →
+  `git tag vX.Y.Z && git push origin vX.Y.Z` → GitHub Release из тега → Packagist (автообновление по webhook). Значимые
+  пункты релиза продублировать в `README.md` (раздел «История изменений»).
+- `version` в `composer.json` **не указывается** — Packagist берёт версию из тегов.
 
 ## 10. Частые ошибки (gotchas)
 
@@ -360,16 +286,27 @@ source .env && docker run --rm --network host \
 6. Имя переменной — только `MAX_API_TOKEN` (старое `MAX_ACCESS_TOKEN` не используется).
 7. `getChats` deprecated — chat_id хранить через подписку на `bot_added`/`bot_started`.
 8. `mime_content_type()` требует `ext-fileinfo` (объявлено в `require` composer.json).
-9. Секреты/токены/vcf_info/callback payload — никогда в логи и коммиты.
+9. Секреты/токены/vcf_info/callback payload — никогда в логи, коммиты и журнал сессий.
 10. Версионирование — только git-тегами; `version` в composer.json не указывать.
 11. `message.link.sender` приходит строкой, а не int — при разборе нужен `Json::tolerantInt()`, иначе теряется
-    `mid` отправленного сообщения и отбрасываются апдейты с `link` (см. v1.1.4).
+    `mid` отправленного сообщения и отбрасываются апдейты с `link` (см. v1.1.4, v1.1.5).
+12. `message.link.sender` по новой спеке — объект `User`, а не int64: в проде встречаются и объект, и числовая строка.
+    Разбирать оба, `LinkedMessage::$senderUser` и `$sender` заполняются одновременно (v1.1.6).
+13. Разметка в ответе (`MessageBody::$markup`, `CommentMessageBody::$markup`) — это список `MarkupElement` с `from` и
+    `length`, а не markdown-строка. В enum `Markup` значение `underline`, хотя в `discriminator.mapping` спеки опечатка
+    `underlined` (v1.1.6).
+14. В `editComment` и `deleteComment` `comment_id` — это `mid` комментария, и он идёт **query-параметром**, а не в пути;
+    `message_id` и `comment_id` валидируются на `[a-zA-Z0-9_-]+` (v1.1.6).
 
 ## 11. Чек-лист «production-grade» (самооценка при доработках)
 
-- [ ] CI зелёный: lint 0, phpstan 0, phpunit зелёные, покрытие ≥95%.
+- [ ] CI зелёный: lint 0, phpstan 0, phpunit зелёные, покрытие ≥95%, `composer audit` чист.
 - [ ] Новый код покрыт unit-тестами (HTTP-слой — через MockHttpClient).
-- [ ] Секретов нет в коде, логах, коммитах.
+- [ ] Секретов нет в коде, логах, коммитах и журнале сессий.
 - [ ] Входные данные валидируются (DTO / WebhookHandler / параметры запросов).
-- [ ] Документация (README, examples/, AGENTS.md) синхронна с реальным поведением кода и API.
+- [ ] OWASP Top 10 соблюдён (раздел 7): сравнение секретов через `hash_equals`, url из вебхуков и подписок проверены на
+  `https://` и домен, нет конкатенаций URL, размеры и типы входа ограничены.
+- [ ] Публичный API не сломан: сигнатуры в patch-релизе не менялись.
+- [ ] `README.md` и `docs/api-reference.md` синхронны с реальным поведением кода и API.
+- [ ] Обновлены `.agents/journals/` и при необходимости `.agents/release/`.
 - [ ] Релиз оформлен: merge в main → тег → GitHub Release → Packagist.

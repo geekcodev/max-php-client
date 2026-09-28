@@ -13,16 +13,20 @@ use GeekCo\MaxPhpClient\Dto\ChatAdminsResult;
 use GeekCo\MaxPhpClient\Dto\ChatListResult;
 use GeekCo\MaxPhpClient\Dto\ChatMember;
 use GeekCo\MaxPhpClient\Dto\ChatMembersResult;
+use GeekCo\MaxPhpClient\Dto\CommentMessage;
+use GeekCo\MaxPhpClient\Dto\CommentMessageList;
 use GeekCo\MaxPhpClient\Dto\EditChatBody;
 use GeekCo\MaxPhpClient\Dto\Message;
+use GeekCo\MaxPhpClient\Dto\NewCommentBody;
 use GeekCo\MaxPhpClient\Dto\NewMessageBody;
 use GeekCo\MaxPhpClient\Dto\PinMessageBody;
 use GeekCo\MaxPhpClient\Dto\Recipient;
+use GeekCo\MaxPhpClient\Dto\SendCommentResult;
 use GeekCo\MaxPhpClient\Dto\Subscription;
 use GeekCo\MaxPhpClient\Dto\SuccessResponse;
 use GeekCo\MaxPhpClient\Dto\Update;
 use GeekCo\MaxPhpClient\Dto\UpdatesResult;
-use GeekCo\MaxPhpClient\Dto\UploadResult;
+use GeekCo\MaxPhpClient\Dto\UploadedInfo;
 use GeekCo\MaxPhpClient\Dto\VideoInfo;
 use GeekCo\MaxPhpClient\Enum\ChatAdminPermission;
 use GeekCo\MaxPhpClient\Enum\SenderAction;
@@ -252,6 +256,9 @@ final class ApiClient
 
     /**
      * @param list<int> $userIds
+     *
+     * @deprecated The method is gone from the specification: adding members is not
+     *             available to bots. It still works in production and will be removed in v2.0.0.
      */
     public function addChatMembers(int $chatId, array $userIds): AddChatMembersResult
     {
@@ -432,11 +439,7 @@ final class ApiClient
 
     public function getMessageById(string $messageId): Message
     {
-        if (!preg_match('/^[a-zA-Z0-9_-]+$/', $messageId)) {
-            throw new InvalidArgumentException('message_id must match [a-zA-Z0-9_-]+.');
-        }
-
-        return Message::fromArray($this->requestObject('GET', sprintf('/messages/%s', $messageId)));
+        return Message::fromArray($this->requestObject('GET', sprintf('/messages/%s', $this->messageId($messageId))));
     }
 
     public function getVideoInfo(string $videoToken): VideoInfo
@@ -444,7 +447,7 @@ final class ApiClient
         return VideoInfo::fromArray($this->requestObject('GET', sprintf('/videos/%s', $videoToken)));
     }
 
-    public function uploadMedia(UploadType $type, string $filePath): UploadResult
+    public function uploadMedia(UploadType $type, string $filePath): UploadedInfo
     {
         if ($this->uploader === null) {
             throw new \LogicException('Upload support is not enabled for this client instance.');
@@ -457,6 +460,7 @@ final class ApiClient
         string $callbackId,
         ?NewMessageBody $message = null,
         ?string $notification = null,
+        ?bool $disableLinkPreview = null,
     ): SuccessResponse {
         if ($message === null && $notification === null) {
             throw new InvalidArgumentException('Either $message or $notification must be provided to answer a callback.');
@@ -466,7 +470,10 @@ final class ApiClient
             throw new InvalidArgumentException('$message must contain text, attachments or a link.');
         }
 
-        $query = $this->query(['callback_id' => $callbackId]);
+        $query = $this->query([
+            'callback_id' => $callbackId,
+            'disable_link_preview' => $disableLinkPreview,
+        ]);
         $body = array_filter(
             [
                 'message' => $message?->toArray(),
@@ -476,6 +483,76 @@ final class ApiClient
         );
 
         return SuccessResponse::fromArray($this->requestObject('POST', '/answers', $query, $body));
+    }
+
+    /**
+     * Комментарии к посту в канале. Бот получает комментарии, только если он
+     * администратор канала с правом `read_all_messages`.
+     *
+     * @param list<string>|null $commentIds
+     */
+    public function getComments(
+        string $messageId,
+        ?array $commentIds = null,
+        ?int $after = null,
+        ?int $before = null,
+        ?int $count = null,
+    ): CommentMessageList {
+        $query = $this->query([
+            'comment_ids' => $commentIds !== null ? implode(',', $commentIds) : null,
+            'after' => $after,
+            'before' => $before,
+            'count' => $count,
+        ]);
+
+        return CommentMessageList::fromArray(
+            $this->requestObject('GET', sprintf('/messages/%s/comments', $this->messageId($messageId)), $query),
+        );
+    }
+
+    public function sendComment(string $messageId, NewCommentBody $body, ?bool $disableLinkPreview = null): CommentMessage
+    {
+        if ($body->toArray() === []) {
+            throw new InvalidArgumentException('A comment must contain text, formatting or a link.');
+        }
+
+        $query = $this->query(['disable_link_preview' => $disableLinkPreview]);
+
+        $result = SendCommentResult::fromArray(
+            $this->requestObject('POST', sprintf('/messages/%s/comments', $this->messageId($messageId)), $query, $body->toArray()),
+        );
+
+        return $result->message;
+    }
+
+    public function editComment(string $messageId, string $commentId, NewCommentBody $body): SuccessResponse
+    {
+        if ($body->toArray() === []) {
+            throw new InvalidArgumentException('A comment must contain text, formatting or a link.');
+        }
+
+        $query = $this->query(['comment_id' => $this->commentId($commentId)]);
+
+        return SuccessResponse::fromArray(
+            $this->requestObject('PUT', sprintf('/messages/%s/comments', $this->messageId($messageId)), $query, $body->toArray()),
+        );
+    }
+
+    public function deleteComment(string $messageId, string $commentId): SuccessResponse
+    {
+        $query = $this->query(['comment_id' => $this->commentId($commentId)]);
+
+        return SuccessResponse::fromArray(
+            $this->requestObject('DELETE', sprintf('/messages/%s/comments', $this->messageId($messageId)), $query),
+        );
+    }
+
+    public function getComment(string $messageId, string $commentId): CommentMessage
+    {
+        return CommentMessage::fromArray($this->requestObject(
+            'GET',
+            sprintf('/messages/%s/comments/%s', $this->messageId($messageId), $this->commentId($commentId)),
+        ));
     }
 
     /**
@@ -493,6 +570,24 @@ final class ApiClient
         }
 
         return $query;
+    }
+
+    private function messageId(string $messageId): string
+    {
+        if (!preg_match('/^[a-zA-Z0-9_-]+$/', $messageId)) {
+            throw new InvalidArgumentException('message_id must match [a-zA-Z0-9_-]+.');
+        }
+
+        return $messageId;
+    }
+
+    private function commentId(string $commentId): string
+    {
+        if (!preg_match('/^[a-zA-Z0-9_-]+$/', $commentId)) {
+            throw new InvalidArgumentException('comment_id must match [a-zA-Z0-9_-]+.');
+        }
+
+        return $commentId;
     }
 
     private function acquire(int $chatId): void

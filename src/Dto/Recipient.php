@@ -12,6 +12,7 @@ readonly class Recipient
         public ?int $chatId = null,
         public ?int $userId = null,
         public ?string $chatType = null,
+        public ?string $postId = null,
     ) {
     }
 
@@ -21,6 +22,7 @@ readonly class Recipient
             chatId: Json::int($data, 'chat_id'),
             userId: Json::int($data, 'user_id'),
             chatType: Json::string($data, 'chat_type'),
+            postId: Json::string($data, 'post_id'),
         );
     }
 
@@ -30,6 +32,7 @@ readonly class Recipient
             'chat_id' => $this->chatId,
             'user_id' => $this->userId,
             'chat_type' => $this->chatType,
+            'post_id' => $this->postId,
         ], static fn (mixed $value): bool => $value !== null);
     }
 }

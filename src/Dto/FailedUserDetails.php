@@ -6,6 +6,9 @@ namespace GeekCo\MaxPhpClient\Dto;
 
 use GeekCo\MaxPhpClient\Internal\Json;
 
+/**
+ * @deprecated Part of the deprecated chat member adding response; removed in v2.0.0.
+ */
 readonly class FailedUserDetails
 {
     public function __construct(

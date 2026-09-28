@@ -24,21 +24,11 @@ readonly class ChatAdmin
     {
         return new self(
             userId: Json::requiredInt($data, 'user_id'),
-            permissions: Json::map($data, 'permissions', static fn (mixed $value): ChatAdminPermission => self::permission(
+            permissions: Json::map($data, 'permissions', static fn (mixed $value): ChatAdminPermission => ChatAdminPermission::fromValue(
                 \is_string($value) ? $value : throw new InvalidResponseException('Admin permission must be a string.'),
             )) ?? [],
             alias: Json::string($data, 'alias'),
         );
-    }
-
-    private static function permission(string $value): ChatAdminPermission
-    {
-        $permission = ChatAdminPermission::tryFrom($value);
-        if ($permission === null) {
-            throw new InvalidResponseException(sprintf('Unsupported admin permission "%s".', $value));
-        }
-
-        return $permission;
     }
 
     public function toArray(): array

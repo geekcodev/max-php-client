@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace GeekCo\MaxPhpClient\Tests\Dto;
 
 use GeekCo\MaxPhpClient\Dto\Update;
+use GeekCo\MaxPhpClient\Enum\ChatAdminPermission;
 use GeekCo\MaxPhpClient\Enum\UpdateType;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
 use PHPUnit\Framework\Attributes\Test;
@@ -156,5 +157,136 @@ final class UpdateTest extends TestCase
         $this->expectExceptionMessage('Field "update_type" must be a string.');
 
         Update::fromArray(['timestamp' => 1000]);
+    }
+
+    #[Test]
+    public function it_parses_bot_admin_permissions_changed(): void
+    {
+        $update = Update::fromArray([
+            'update_type' => 'bot_admin_permissions_changed',
+            'timestamp' => 1000,
+            'chat_id' => 5,
+            'user_id' => 7,
+            'bot_id' => 42,
+            'is_channel' => true,
+            'is_admin' => false,
+            'permissions' => ['read_all_messages', 'write'],
+        ]);
+
+        $this->assertSame(UpdateType::BotAdminPermissionsChanged, $update->updateType);
+        $this->assertSame(42, $update->botId);
+        $this->assertFalse($update->isAdmin);
+        $this->assertTrue($update->isChannel);
+        $this->assertSame(
+            [ChatAdminPermission::ReadAllMessages, ChatAdminPermission::Write],
+            $update->permissions,
+        );
+    }
+
+    #[Test]
+    public function it_parses_comment_removed(): void
+    {
+        $update = Update::fromArray([
+            'update_type' => 'comment_removed',
+            'timestamp' => 1000,
+            'chat_id' => 5,
+            'user_id' => 7,
+            'message_id' => 'c1',
+            'post_id' => 'mid_post',
+        ]);
+
+        $this->assertSame(UpdateType::CommentRemoved, $update->updateType);
+        $this->assertSame('mid_post', $update->postId);
+        $this->assertSame('c1', $update->messageId);
+        $this->assertNull($update->comment);
+        $this->assertNull($update->message);
+    }
+
+    #[Test]
+    public function it_parses_a_comment_created_update_into_the_comment_field(): void
+    {
+        $update = Update::fromArray([
+            'update_type' => 'comment_created',
+            'timestamp' => 1000,
+            'message' => [
+                'sender' => ['user_id' => 7, 'first_name' => 'Alice', 'is_bot' => false, 'last_activity_time' => 1000],
+                'recipient' => ['chat_id' => 5, 'chat_type' => 'channel', 'post_id' => 'mid_post'],
+                'timestamp' => 1000,
+                'body' => ['mid' => 'c1', 'seq' => 2, 'text' => 'Nice post'],
+            ],
+        ]);
+
+        $this->assertSame(UpdateType::CommentCreated, $update->updateType);
+        $this->assertNull($update->message);
+        $this->assertSame(7, $update->user?->userId);
+        $this->assertSame(5, $update->chatId);
+        $this->assertSame('c1', $update->comment?->body->mid);
+        $this->assertSame('Nice post', $update->comment?->body->text);
+        $this->assertSame('mid_post', $update->comment?->recipient->postId);
+    }
+
+    #[Test]
+    public function it_parses_a_comment_published_on_behalf_of_the_channel(): void
+    {
+        $update = Update::fromArray([
+            'update_type' => 'comment_edited',
+            'timestamp' => 1000,
+            'message' => [
+                'sender' => null,
+                'recipient' => ['chat_id' => 5, 'chat_type' => 'channel', 'post_id' => 'mid_post'],
+                'timestamp' => 1000,
+                'body' => ['mid' => 'c1', 'seq' => 2, 'text' => 'Edited'],
+            ],
+        ]);
+
+        $this->assertNull($update->user);
+        $this->assertNull($update->comment?->sender);
+        $this->assertSame('c1', $update->comment?->body->mid);
+    }
+
+    #[Test]
+    public function it_rejects_an_unknown_admin_permission(): void
+    {
+        $this->expectException(InvalidResponseException::class);
+        $this->expectExceptionMessage('Unsupported admin permission "fly".');
+
+        Update::fromArray([
+            'update_type' => 'bot_admin_permissions_changed',
+            'timestamp' => 1000,
+            'permissions' => ['fly'],
+        ]);
+    }
+
+    #[Test]
+    public function it_rejects_a_non_string_admin_permission(): void
+    {
+        $this->expectException(InvalidResponseException::class);
+        $this->expectExceptionMessage('Admin permission must be a string.');
+
+        Update::fromArray([
+            'update_type' => 'bot_admin_permissions_changed',
+            'timestamp' => 1000,
+            'permissions' => [7],
+        ]);
+    }
+
+    #[Test]
+    public function it_roundtrips_a_comment_update_through_the_message_field(): void
+    {
+        $payload = [
+            'update_type' => 'comment_created',
+            'timestamp' => 1000,
+            'message' => [
+                'recipient' => ['chat_id' => 5, 'chat_type' => 'channel', 'post_id' => 'mid_post'],
+                'timestamp' => 1000,
+                'body' => ['mid' => 'c1', 'seq' => 2, 'text' => 'Nice post'],
+            ],
+        ];
+
+        $decoded = Update::fromArray(Update::fromArray($payload)->toArray());
+
+        $this->assertSame(UpdateType::CommentCreated, $decoded->updateType);
+        $this->assertSame('c1', $decoded->comment?->body->mid);
+        $this->assertSame('channel', $decoded->comment?->recipient->chatType);
     }
 }

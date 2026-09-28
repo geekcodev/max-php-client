@@ -8,6 +8,9 @@ use GeekCo\MaxPhpClient\Internal\Json;
 
 readonly class NewMessageLink
 {
+    /**
+     * @param string|null $chat @deprecated Устаревшее поле: в исходящей форме идентификатор чата задаётся получателем.
+     */
     public function __construct(
         public string $type,
         public ?string $mid = null,
