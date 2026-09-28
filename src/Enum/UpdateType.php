@@ -21,4 +21,8 @@ enum UpdateType: string
     case MessageRemoved = 'message_removed';
     case UserAdded = 'user_added';
     case UserRemoved = 'user_removed';
+    case CommentCreated = 'comment_created';
+    case CommentEdited = 'comment_edited';
+    case CommentRemoved = 'comment_removed';
+    case BotAdminPermissionsChanged = 'bot_admin_permissions_changed';
 }

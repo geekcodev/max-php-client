@@ -64,7 +64,7 @@ MAX_WEBHOOK_SECRET=your-webhook-secret
 
 ## Возможности
 
-- Все эндпоинты API (chats, messages, members/admins, subscriptions, updates, uploads, answers, me)
+- Все эндпоинты API (chats, messages, comments, members/admins, subscriptions, updates, uploads, answers, me)
 - Типизированные DTO для всех объектов спеки
 - Ретраи с экспоненциальным бэкоффом (в т.ч. `attachment.not.ready`, `429`, `503`, сетевые ошибки)
 - Локальный rate limiter 2 req/s на диалог/чат/канал
@@ -73,6 +73,7 @@ MAX_WEBHOOK_SECRET=your-webhook-secret
 - Long polling runner
 - Верификация контакта из кнопки `request_contact`
 - Верификация стартовых данных мини-приложения (`WebAppDataValidator`)
+- Разобранная разметка сообщений и комментариев (`Markup` + `MarkupElement`)
 - Типизированные исключения
 
 ## Примеры
@@ -188,6 +189,50 @@ $client->sendAnswer(
 
 API требует `message` **или** `notification` — при вызове без обоих клиент выбрасывает
 `InvalidArgumentException` до запроса.
+
+## Комментарии и разметка
+
+Комментарии к постам в канале (боту нужно право `read_all_messages`):
+
+```php
+use GeekCo\MaxPhpClient\Dto\NewCommentBody;
+use GeekCo\MaxPhpClient\Enum\TextFormat;
+
+// Комментарии поста с фильтрами по времени
+$list = $client->getComments('mid_post', after: 1000, count: 50);
+
+$comment = $client->sendComment(
+    'mid_post',
+    NewCommentBody::create('Спасибо!', TextFormat::Markdown),
+    disableLinkPreview: true,
+);
+
+$client->editComment('mid_post', $comment->body->mid, NewCommentBody::create('Исправлено', TextFormat::Markdown));
+$client->deleteComment('mid_post', $comment->body->mid);
+$same = $client->getComment('mid_post', $comment->body->mid);
+```
+
+`comment_id` в `editComment` и `deleteComment` — это `mid` комментария, и он передаётся query-параметром, а не в пути.
+Текст комментария — до 4000 символов, вложений нет.
+
+При отправке форматирование задаётся строкой (`NewMessageBody::$format` / `NewCommentBody::$format`), а в ответе API
+приходит разобранная структура:
+
+```php
+foreach ($message->body?->markup ?? [] as $element) {
+    $element->type;      // GeekCo\MaxPhpClient\Enum\Markup::Strong, ::Link, ::UserMention, …
+    $element->from;      // индекс начала в тексте
+    $element->length;    // длина в символах
+    $element->url;       // только для Markup::Link
+    $element->userId;    // только для Markup::UserMention
+}
+```
+
+`caption` и `format` в `MessageBody` (ответ) устарели — используйте `markup`; они остаются для совместимости и будут
+удалены в v2.0.0.
+
+Апдейты `comment_created` и `comment_edited` приходят в общем `Update`: комментарий разобран в `Update::$comment`
+(тип `CommentMessage`), а `Update::$message` остаётся `null`. Для `comment_removed` доступны `message_id` и `post_id`.
 
 ## Вебхуки
 
@@ -371,6 +416,35 @@ MAX_API_TOKEN=<token> docker run --rm --network host \
 OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
 
 ## История изменений
+
+### v1.1.6 — синхронизация со спецификацией: комментарии, разметка, 19 типов обновлений
+
+- Новый API комментариев к постам в каналах: `getComments()`, `sendComment()`, `editComment()`, `deleteComment()`,
+  `getComment()`; DTO `CommentMessage`, `CommentMessageBody`, `CommentLinkedMessage`, `CommentMessageList`,
+  `SendCommentResult`, `NewCommentBody`. `comment_id` в `editComment`/`deleteComment` передаётся query-параметром.
+- Разобранная разметка ответов: enum `Markup` (10 значений) и DTO `MarkupElement` (`type`, `from`, `length`, `url`,
+  `user_id`, `user_link`); поле `markup` в `MessageBody` и `CommentMessageBody`.
+- `UpdateType` расширен до 19 значений: добавлены `comment_created`, `comment_edited`, `comment_removed`,
+  `bot_admin_permissions_changed`; в `Update` появились поля `postId`, `comment`, `botId`, `isAdmin`, `permissions`.
+  Плоская модель `Update` сохранена, типизированные подтипы запланированы на v2.0.0.
+- `LinkedMessage` понимает новую форму спеки: `message` (вложенный `MessageBody`), `sender` как объект `User`
+  (`LinkedMessage::$senderUser`) и `chat_id` (`LinkedMessage::$chatId`), при этом прежние `?int $sender`, `mid`, `chat`
+  работают как раньше.
+- Вложения: координаты локации читаются с верхнего уровня и из вложенного `payload`; `AttachmentRequest` умеет
+  `code` для стикера и `latitude`/`longitude` для локации; `ImageAttachmentPayload` дополнен `photo_id`.
+- `sendAnswer()` принимает `disable_link_preview`; `getMessageById()` переиспользует общий валидатор `message_id`.
+- Ответ `/uploads` — `UploadedInfo` (`url` обязателен, `token` nullable); `UploadResult` оставлен предком.
+- `ChatAdminPermission::fromValue()` вместо private-парсеров в `ChatAdmin` и `ChatMember`; `BotCommand::$description`
+  стал необязательным, `Recipient` получил `postId`.
+- Устарело до v2.0.0: `getChats()`, `addChatMembers()` (нет в спеке), `MessageBody::$caption`, `MessageBody::$format`,
+  `NewMessageLink::$chat`, `AddChatMembersResult`, `FailedUserDetails`, `UploadResult`. Сигнатуры не менялись — релиз
+  обратно совместим.
+
+### v1.1.5 — tolerantInt: равнозначные формы числа и значение в ошибке (см. GitHub Release v1.1.5)
+
+- `Json::tolerantInt()` принимает целочисленный float и строку с пробелами по краям, а сообщение об ошибке теперь
+  содержит фактическое значение (обрезанное до 64 байт). Это продолжение v1.1.4: прод отдаёт `message.link.sender`
+  не только строкой, но и другими равнозначными формами числа.
 
 ### v1.1.4 — LinkedMessage: sender необязателен и принимается строкой (см. GitHub Release v1.1.4)
 

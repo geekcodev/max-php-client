@@ -10,7 +10,7 @@ readonly class BotCommand
 {
     public function __construct(
         public string $name,
-        public string $description,
+        public ?string $description = null,
     ) {
     }
 
@@ -18,15 +18,15 @@ readonly class BotCommand
     {
         return new self(
             name: Json::requiredString($data, 'name'),
-            description: Json::requiredString($data, 'description'),
+            description: Json::string($data, 'description'),
         );
     }
 
     public function toArray(): array
     {
-        return [
+        return array_filter([
             'name' => $this->name,
             'description' => $this->description,
-        ];
+        ], static fn (mixed $value): bool => $value !== null);
     }
 }

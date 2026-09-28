@@ -6,6 +6,10 @@ namespace GeekCo\MaxPhpClient\Dto;
 
 use GeekCo\MaxPhpClient\Internal\Json;
 
+/**
+ * @deprecated Имя из спецификации — `UploadedInfo`. Класс остаётся для совместимости
+ *             и будет удалён в v2.0.0.
+ */
 readonly class UploadResult
 {
     public function __construct(

@@ -4,12 +4,24 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Dto;
 
+use GeekCo\MaxPhpClient\Enum\ChatAdminPermission;
 use GeekCo\MaxPhpClient\Enum\UpdateType;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
 use GeekCo\MaxPhpClient\Internal\Json;
 
+/**
+ * Событие MAX. Модель плоская: набор полей зависит от `updateType`, API присылает
+ * только поля конкретного события. Типизированные подтипы событий появятся в v2.0.0.
+ *
+ * Для событий комментариев (`comment_created`, `comment_edited`) поле `message`
+ * содержит `CommentMessage` — оно разбирается в `$comment`, а `$message` остаётся
+ * `null`.
+ */
 readonly class Update
 {
+    /**
+     * @param list<ChatAdminPermission>|null $permissions
+     */
     public function __construct(
         public UpdateType $updateType,
         public int $timestamp,
@@ -26,14 +38,24 @@ readonly class Update
         public ?int $userId = null,
         public ?int $inviterId = null,
         public ?int $adminId = null,
+        public ?string $postId = null,
+        public ?CommentMessage $comment = null,
+        public ?int $botId = null,
+        public ?bool $isAdmin = null,
+        public ?array $permissions = null,
     ) {
     }
 
     public static function fromArray(array $data): self
     {
+        $updateType = Json::enum(UpdateType::class, $data, 'update_type')
+            ?? throw new InvalidResponseException('Field "update_type" must be a string.');
+
         $messageData = $data['message'] ?? null;
         $callbackData = $data['callback'] ?? null;
+        $isComment = $updateType === UpdateType::CommentCreated || $updateType === UpdateType::CommentEdited;
 
+        $commentData = $isComment && \is_array($messageData) ? $messageData : null;
         $userData = $data['user'] ?? null;
         if (!\is_array($userData) && \is_array($messageData)) {
             $userData = $messageData['sender'] ?? null;
@@ -43,8 +65,9 @@ readonly class Update
         }
 
         $chatId = Json::int($data, 'chat_id');
-        if ($chatId === null && \is_array($messageData) && \is_array($messageData['recipient'] ?? null)) {
-            $chatId = Json::int($messageData['recipient'], 'chat_id');
+        $recipientData = \is_array($messageData) ? ($messageData['recipient'] ?? null) : null;
+        if ($chatId === null && \is_array($recipientData)) {
+            $chatId = Json::int($recipientData, 'chat_id');
         }
         if ($chatId === null && \is_array($callbackData) && \is_array($callbackData['message'] ?? null)) {
             $recipient = $callbackData['message']['recipient'] ?? null;
@@ -54,13 +77,12 @@ readonly class Update
         }
 
         return new self(
-            updateType: Json::enum(UpdateType::class, $data, 'update_type')
-                ?? throw new InvalidResponseException('Field "update_type" must be a string.'),
+            updateType: $updateType,
             timestamp: Json::requiredInt($data, 'timestamp'),
             user: \is_array($userData) ? User::fromArray($userData) : null,
             chatId: $chatId,
             isChannel: Json::bool($data, 'is_channel'),
-            message: \is_array($messageData) ? Message::fromArray($messageData) : null,
+            message: !$isComment && \is_array($messageData) ? Message::fromArray($messageData) : null,
             callback: \is_array($callbackData) ? Callback::fromArray($callbackData) : null,
             userLocale: Json::string($data, 'user_locale'),
             title: Json::string($data, 'title'),
@@ -70,6 +92,11 @@ readonly class Update
             userId: Json::int($data, 'user_id'),
             inviterId: Json::int($data, 'inviter_id'),
             adminId: Json::int($data, 'admin_id'),
+            postId: Json::string($data, 'post_id'),
+            comment: \is_array($commentData) ? CommentMessage::fromArray($commentData) : null,
+            botId: Json::int($data, 'bot_id'),
+            isAdmin: Json::bool($data, 'is_admin'),
+            permissions: self::permissions($data),
         );
     }
 
@@ -81,7 +108,7 @@ readonly class Update
             'chat_id' => $this->chatId,
             'user' => $this->user?->toArray(),
             'is_channel' => $this->isChannel,
-            'message' => $this->message?->toArray(),
+            'message' => $this->message?->toArray() ?? $this->comment?->toArray(),
             'callback' => $this->callback?->toArray(),
             'user_locale' => $this->userLocale,
             'title' => $this->title,
@@ -91,6 +118,26 @@ readonly class Update
             'user_id' => $this->userId,
             'inviter_id' => $this->inviterId,
             'admin_id' => $this->adminId,
+            'post_id' => $this->postId,
+            'bot_id' => $this->botId,
+            'is_admin' => $this->isAdmin,
+            'permissions' => $this->permissions === null
+                ? null
+                : array_map(static fn (ChatAdminPermission $permission): string => $permission->value, $this->permissions),
         ], static fn (mixed $value): bool => $value !== null);
+    }
+
+    /**
+     * @return list<ChatAdminPermission>|null
+     */
+    private static function permissions(array $data): ?array
+    {
+        return Json::map(
+            $data,
+            'permissions',
+            static fn (mixed $item): ChatAdminPermission => ChatAdminPermission::fromValue(
+                \is_string($item) ? $item : throw new InvalidResponseException('Admin permission must be a string.'),
+            ),
+        );
     }
 }

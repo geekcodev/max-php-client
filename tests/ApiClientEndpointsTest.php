@@ -661,6 +661,30 @@ final class ApiClientEndpointsTest extends TestCase
     }
 
     #[Test]
+    public function it_rejects_a_non_object_updates_response(): void
+    {
+        $this->http->next(fn ($request) => $this->factory->createResponse(200)
+            ->withHeader('Content-Type', 'application/json')
+            ->withBody($this->factory->createStream('"just-a-string"')));
+
+        $this->expectException(\GeekCo\MaxPhpClient\Exception\InvalidResponseException::class);
+        $this->expectExceptionMessage('Expected a JSON object in the response.');
+
+        $this->client()->getUpdates(limit: 5);
+    }
+
+    #[Test]
+    public function it_rejects_a_non_list_updates_field(): void
+    {
+        $this->http->next(fn ($request) => $this->json(['updates' => 'nope']));
+
+        $this->expectException(\GeekCo\MaxPhpClient\Exception\InvalidResponseException::class);
+        $this->expectExceptionMessage('Expected a JSON list in response field "updates".');
+
+        $this->client()->getUpdates(limit: 5);
+    }
+
+    #[Test]
     public function it_gets_messages(): void
     {
         $this->http->next(fn ($request) => $this->json(['messages' => [[

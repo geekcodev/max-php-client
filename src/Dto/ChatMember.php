@@ -65,7 +65,7 @@ readonly class ChatMember extends UserWithPhoto
             permissions: Json::map(
                 $data,
                 'permissions',
-                static fn (mixed $item): ChatAdminPermission => self::permission(
+                static fn (mixed $item): ChatAdminPermission => ChatAdminPermission::fromValue(
                     \is_string($item) ? $item : throw new \GeekCo\MaxPhpClient\Exception\InvalidResponseException(
                         'Admin permission must be a string.',
                     ),
@@ -73,18 +73,6 @@ readonly class ChatMember extends UserWithPhoto
             ),
             alias: Json::string($data, 'alias'),
         );
-    }
-
-    private static function permission(string $value): ChatAdminPermission
-    {
-        $permission = ChatAdminPermission::tryFrom($value);
-        if ($permission === null) {
-            throw new \GeekCo\MaxPhpClient\Exception\InvalidResponseException(
-                sprintf('Unsupported admin permission "%s".', $value),
-            );
-        }
-
-        return $permission;
     }
 
     public function toArray(): array

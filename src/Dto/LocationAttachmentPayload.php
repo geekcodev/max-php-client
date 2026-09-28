@@ -6,6 +6,12 @@ namespace GeekCo\MaxPhpClient\Dto;
 
 use GeekCo\MaxPhpClient\Internal\Json;
 
+/**
+ * Payload вложения `type=location` в том виде, в каком его отдаёт API. В
+ * спецификации координаты лежат на верхнем уровне вложения, поэтому в
+ * `Attachment` продублированы как `latitude` и `longitude`, а этот класс
+ * разбирает вложенную форму.
+ */
 readonly class LocationAttachmentPayload
 {
     public function __construct(

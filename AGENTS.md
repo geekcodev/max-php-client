@@ -123,8 +123,8 @@ phpstan.neon                  level max
 | Upload      | `Uploader`                                        | Multipart-загрузка медиа (требует `ext-fileinfo`)                                  |
 | Security    | `ContactVerifier`, `WebAppDataValidator`          | Верификация контакта по кнопке `request_contact`; стартовых данных мини-приложения |
 | Internal    | `Internal\Json`                                   | Единственное место работы с JSON (кодирование/декодирование с исключениями)        |
-| Dto         | `src/Dto/*` (44 класса)                           | Типизированные модели запросов и ответов                                           |
-| Enum        | `src/Enum/*` (8)                                  | Строго типизированные значения                                                     |
+| Dto         | `src/Dto/*` (54 класса)                           | Типизированные модели запросов и ответов                                           |
+| Enum        | `src/Enum/*` (10)                                 | Строго типизированные значения                                                     |
 | Exception   | `src/Exception/*` (7)                             | Иерархия типизированных ошибок                                                     |
 
 ### Контракты компонентов
@@ -133,6 +133,10 @@ phpstan.neon                  level max
   `$uriFactory` (PSR-17), `$accessToken` (обязательный), `$baseUri`, `$retryStrategy`, `$rateLimiter` (per-chat 2
   req/s), `$globalRateLimiter` (по умолчанию 30 req/s). Внутри собирает `HttpClient` (transport + retry + глобальный
   rate limit) и `Uploader`. Используется во всех примерах (`examples/bootstrap.php`).
+- **Комментарии** — `getComments()`, `sendComment()`, `editComment()`, `deleteComment()`, `getComment()`: работают с
+  сообщениями в каналах, где у бота есть право `read_all_messages`; `comment_id` = `mid` комментария, передаётся
+  query-параметром; апдейты `comment_created`/`comment_edited` разбираются в `Update::$comment` (`CommentMessage`), а
+  `Update::$message` остаётся `null`.
 - **`WebhookHandler::decode(): Update|list<Update>`** — критичный нюанс: ответ может быть **одним объектом**
   **или** списком. Итерация без проверки ломает foreach:
   ```php
@@ -161,16 +165,17 @@ phpstan.neon                  level max
 ### Соглашения DTO
 
 - Все DTO — `final readonly`, типизированные nullable-поля, валидация типов в `fromArray()`.
-- `toArray()` — для запросов. Конструкторы `create()` есть только у `NewMessageBody`, `EditChatBody`,
+- `toArray()` — для запросов. Конструкторы `create()` есть только у `NewMessageBody`, `NewCommentBody`, `EditChatBody`,
   `AttachmentRequest`, `PinMessageBody`.
-- Вложения (`Attachment`) — discriminated по `token`: 7 типов payload (+ image/photo).
+- Вложения (`Attachment`) — discriminated по `token`: 7 типов payload (+ image). Координаты локации в спеке лежат на
+  верхнем уровне вложения, но вложенная форма тоже разбирается.
 - JSON-кодирование/декодирование — только через `Internal\Json`, никогда напрямую `json_encode`/`json_decode`.
 - ID: `message_id` / `callback_id` / `messageId` — **строки**; `chat_id` / `user_id` — **int64**.
 - Отклонения API от спек-типов: внутри объекта `link` идентификаторы приходят **строками** (`sender: "277570130"`,
-  `chat: "117541872"`), хотя `sender` объявлен как `integer/int64`. Такие int64 читать через
-  `Json::tolerantInt()` (int или числовая строка → int, нет значения → `null`, мусор → исключение), а не через
-  `Json::requiredInt()`. `LinkedMessage::$sender` — `?int` (в спеке поле необязательное). Полный список зафиксированных
-  расхождений — `docs/api-reference.md`, раздел 9.
+  `chat: "117541872"`), хотя `sender` объявлен как `integer/int64` (а в новой спеке — объект `User`). Такие int64 читать
+  через `Json::tolerantInt()` (int или числовая строка → int, нет значения → `null`, мусор → исключение), а не через
+  `Json::requiredInt()`. `LinkedMessage::$sender` — `?int` (в спеке поле необязательное), `LinkedMessage::$senderUser` —
+  `?User` для новой формы спеки. Полный список зафиксированных расхождений — `docs/api-reference.md`, раздел 9.
 
 ### Иерархия исключений
 
@@ -285,6 +290,13 @@ source .env && docker run --rm --network host \
 10. Версионирование — только git-тегами; `version` в composer.json не указывать.
 11. `message.link.sender` приходит строкой, а не int — при разборе нужен `Json::tolerantInt()`, иначе теряется
     `mid` отправленного сообщения и отбрасываются апдейты с `link` (см. v1.1.4, v1.1.5).
+12. `message.link.sender` по новой спеке — объект `User`, а не int64: в проде встречаются и объект, и числовая строка.
+    Разбирать оба, `LinkedMessage::$senderUser` и `$sender` заполняются одновременно (v1.1.6).
+13. Разметка в ответе (`MessageBody::$markup`, `CommentMessageBody::$markup`) — это список `MarkupElement` с `from` и
+    `length`, а не markdown-строка. В enum `Markup` значение `underline`, хотя в `discriminator.mapping` спеки опечатка
+    `underlined` (v1.1.6).
+14. В `editComment` и `deleteComment` `comment_id` — это `mid` комментария, и он идёт **query-параметром**, а не в пути;
+    `message_id` и `comment_id` валидируются на `[a-zA-Z0-9_-]+` (v1.1.6).
 
 ## 11. Чек-лист «production-grade» (самооценка при доработках)
 
