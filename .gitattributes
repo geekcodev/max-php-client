@@ -4,9 +4,6 @@
 /.env.example export-ignore
 /.php-cs-fixer.dist.php export-ignore
 /AGENTS.md export-ignore
-# Фикстура vCard хранится с реальными CRLF — это форма боевого payload от MAX,
-# и конвертация переводов строк сломала бы тесты и скрыла бы реальные данные.
-/tests/Fixtures/vcard/*.vcf -text
 /CONTRIBUTING.md export-ignore
 /Dockerfile export-ignore
 /docker-compose.yml export-ignore
@@ -15,3 +12,7 @@
 /phpstan.neon export-ignore
 /scripts export-ignore
 /tests export-ignore
+
+# Фикстура vCard хранится с реальными CRLF — это форма боевого payload от MAX,
+# и конвертация переводов строк сломала бы тесты и скрыла бы реальные данные.
+/tests/Fixtures/vcard/*.vcf -text
