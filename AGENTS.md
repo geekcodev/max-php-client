@@ -112,20 +112,20 @@ phpstan.neon                  level max
 
 ### Слои
 
-| Слой        | Ключевые классы                                   | Назначение                                                                         |
-|-------------|---------------------------------------------------|------------------------------------------------------------------------------------|
-| API         | `ApiClient`, `ApiClient::create()`                | Единственная точка входа; фабрика компонентов                                      |
-| Transport   | `HttpClient`, `RequestBuilder`, `ResponseDecoder` | PSR-18 запросы, сборка URI/заголовков, разбор ответов, нормализация ошибок         |
-| Retry       | `RetryStrategy`                                   | Экспоненциальный бэкофф: 429/5xx/сетевые сбои/`attachment.not.ready`               |
-| RateLimit   | `RateLimiter`                                     | Token bucket, 2 запроса/сек                                                        |
-| Webhook     | `WebhookHandler`                                  | Парсинг Update, верификация секрета (`hash_equals`)                                |
-| LongPolling | `LongPollingRunner`                               | Обёртка над `getUpdates` (только dev/тесты)                                        |
-| Upload      | `Uploader`                                        | Multipart-загрузка медиа (требует `ext-fileinfo`)                                  |
-| Security    | `ContactVerifier`, `WebAppDataValidator`          | Верификация контакта по кнопке `request_contact`; стартовых данных мини-приложения |
-| Internal    | `Internal\Json`                                   | Единственное место работы с JSON (кодирование/декодирование с исключениями)        |
-| Dto         | `src/Dto/*` (54 класса)                           | Типизированные модели запросов и ответов                                           |
-| Enum        | `src/Enum/*` (10)                                 | Строго типизированные значения                                                     |
-| Exception   | `src/Exception/*` (7)                             | Иерархия типизированных ошибок                                                     |
+| Слой        | Ключевые классы                                                   | Назначение                                                                                                        |
+|-------------|-------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| API         | `ApiClient`, `ApiClient::create()`                                | Единственная точка входа; фабрика компонентов                                                                     |
+| Transport   | `HttpClient`, `RequestBuilder`, `ResponseDecoder`                 | PSR-18 запросы, сборка URI/заголовков, разбор ответов, нормализация ошибок                                        |
+| Retry       | `RetryStrategy`                                                   | Экспоненциальный бэкофф: 429/5xx/сетевые сбои/`attachment.not.ready`                                              |
+| RateLimit   | `RateLimiter`                                                     | Token bucket, 2 запроса/сек                                                                                       |
+| Webhook     | `WebhookHandler`                                                  | Парсинг Update, верификация секрета (`hash_equals`)                                                               |
+| LongPolling | `LongPollingRunner`                                               | Обёртка над `getUpdates` (только dev/тесты)                                                                       |
+| Upload      | `Uploader`                                                        | Multipart-загрузка медиа (требует `ext-fileinfo`)                                                                 |
+| Security    | `ContactVerifier`, `ContactPhoneExtractor`, `WebAppDataValidator` | Верификация контакта по кнопке `request_contact` и номер телефона из `vcf_info`; стартовых данных мини-приложения |
+| Internal    | `Internal\Json`                                                   | Единственное место работы с JSON (кодирование/декодирование с исключениями)                                       |
+| Dto         | `src/Dto/*` (54 класса)                                           | Типизированные модели запросов и ответов                                                                          |
+| Enum        | `src/Enum/*` (10)                                                 | Строго типизированные значения                                                                                    |
+| Exception   | `src/Exception/*` (7)                                             | Иерархия типизированных ошибок                                                                                    |
 
 ### Контракты компонентов
 
@@ -155,8 +155,16 @@ phpstan.neon                  level max
 - **`Uploader::upload(UploadType $type, string $filePath)`** — multipart собирается в seekable `php://temp`-поток (файл
   копируется по чанкам 8 КБ, без загрузки в память целиком; поток безопасен для повторов при ретраях). После загрузки
   **ждать** перед отправкой сообщения — иначе `attachment.not.ready` (ретраится автоматически).
-- **`ContactVerifier`** — верификация: `hash_equals(hash_hmac('sha256', $normalizedVcf, $accessToken), $hash)`; в
-  `vcf_info` `\r\n` нормализуется в реальные переносы строк.
+- **`ContactVerifier`** — верификация: `hash_equals(hash_hmac('sha256', $vcfInfo, $accessToken), $hash)`; `vcf_info`
+  хэшируется как есть, сырыми байтами (реальные CRLF, v1.1.3), при наличии литеральных `\r\n` — восстановление и
+  повторная проверка. Хэш в hex или base64 (v1.1.2).
+- **`ContactPhoneExtractor`** — `fromVcf(string $vcfInfo): ?string`: значение первого непустого `TEL` из `vcf_info`
+  (`/^(?:[A-Za-z0-9-]+\.)?TEL(?:;[^:]*)?:(.*)$/i` — с префиксом группы; `X-TEL` не подходит), с учётом всех форм
+  переводов строк и свёрнутых строк vCard. Во входящем payload `vcf_phone` нет, номер берётся только отсюда; значение
+  возвращается как есть, без нормализации (v1.1.7). Подтверждён единственный реальный захват:
+  `TEL;TYPE=cell:79250000000`, то есть полный код страны **без `+`**; в MAX один аккаунт — один номер, поэтому значение
+  однозначно идентифицирует пользователя и требует канонизации на стороне потребителя, если используется как ключ.
+  Формат для номеров других стран не подтверждён — не нормализовать наугад, ждать выборок.
 - **`WebAppDataValidator`** — верификация стартовых данных мини-приложения (`verify(string $initData)` и
   `verifyFromUrl(string $url)`): `secret_key = HMAC-SHA256('WebAppData', token)`, подпись
   `hex(HMAC-SHA256(secret_key, launch_params))`; `launch_params` — значения после URL-декодирования, отсортированные по
@@ -225,6 +233,30 @@ docker compose run --rm app vendor/bin/phpunit         # unit-тесты
 docker compose run --rm app composer run coverage      # тесты + проверка покрытия ≥95%
 docker compose run --rm app composer audit             # уязвимости зависимостей → 0 уязвимых
 ```
+
+`composer audit` (и `install`/`update`) из сети `docker compose run` и даже с `--network host` могут висеть с
+`curl error 28`: DNS для `repo.packagist.org` и `packagist.org` отдаёт ротирующийся набор A-адресов, часть из них из
+некоторых сетей не отвечает. Рабочий рецепт — подставить достижимые адреса (резолвить заново на каждый запуск):
+
+```bash
+pick_ip() {  # первый отвечающий на 443 IPv4-адрес из ротирующегося пула DNS
+  local host="$1" ip
+  for _ in $(seq 12); do
+    for ip in $(getent ahostsv4 "$host" | awk '{print $1}' | sort -u); do
+      curl -4 -s --max-time 4 -o /dev/null --resolve "$host:443:$ip" "https://$host/" && { echo "$ip"; return; }
+    done
+  done
+}
+
+docker run --rm --network host \
+  --add-host "repo.packagist.org:$(pick_ip repo.packagist.org)" \
+  --add-host "packagist.org:$(pick_ip packagist.org)" \
+  -v "$(pwd)":/var/www/html -w /var/www/html -e COMPOSER_ROOT_VERSION=dev-main \
+  ghcr.io/geekcodev/php:8.4-bookworm composer audit
+```
+
+Один ответ DNS часто содержит только неотвечающие адреса, поэтому в `pick_ip` адреса опрашиваются многократно; повтор
+`composer audit` без фиксации адресов не помогает. В CI сеть нормальная, шаг выполняется штатно.
 
 Запуск примеров без локального PHP:
 
@@ -297,6 +329,11 @@ source .env && docker run --rm --network host \
     `underlined` (v1.1.6).
 14. В `editComment` и `deleteComment` `comment_id` — это `mid` комментария, и он идёт **query-параметром**, а не в пути;
     `message_id` и `comment_id` валидируются на `[a-zA-Z0-9_-]+` (v1.1.6).
+15. `ContactAttachmentPayload.vcf_phone` приходит только в **исходящем** payload; во входящем номер телефона брать из
+    `vcf_info` через `ContactPhoneExtractor::fromVcf()`, порядок в потребителе — `vcfPhone ?? fromVcf(vcfInfo)`
+    (v1.1.7). В реальном payload номер **без `+`**. Регистрация в MAX — только на один номер, поэтому контакт однозначно
+    идентифицирует пользователя: если номер используется как ключ (CRM, дедупликация, лид), канонизацию делать в своём
+    слое, иначе формы из разных источников разойдутся.
 
 ## 11. Чек-лист «production-grade» (самооценка при доработках)
 
