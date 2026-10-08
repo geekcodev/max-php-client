@@ -291,4 +291,29 @@ final class JsonTest extends TestCase
         $this->assertNull(Json::map([], 'a', $mapper));
         $this->assertSame(['1', '2'], Json::map(['a' => [1, 2]], 'a', $mapper));
     }
+
+    #[Test]
+    public function it_reads_an_optional_int_map(): void
+    {
+        $this->assertNull(Json::intMap([], 'a'));
+        $this->assertNull(Json::intMap(['a' => null], 'a'));
+        $this->assertSame([], Json::intMap(['a' => []], 'a'));
+        $this->assertSame([7 => 1000, -8 => 0], Json::intMap(['a' => [7 => 1000, -8 => 0]], 'a'));
+    }
+
+    #[Test]
+    public function it_rejects_a_map_with_a_non_integer_key(): void
+    {
+        $this->expectException(InvalidResponseException::class);
+
+        Json::intMap(['a' => ['x' => 1]], 'a');
+    }
+
+    #[Test]
+    public function it_rejects_a_map_with_a_non_integer_value(): void
+    {
+        $this->expectException(InvalidResponseException::class);
+
+        Json::intMap(['a' => [7 => 'x']], 'a');
+    }
 }

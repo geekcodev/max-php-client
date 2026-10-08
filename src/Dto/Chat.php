@@ -12,7 +12,7 @@ use GeekCo\MaxPhpClient\Internal\Json;
 readonly class Chat
 {
     /**
-     * @param list<User>|null $participants
+     * @param array<int, int>|null $participants user_id => время последней активности (Unix, мс)
      */
     public function __construct(
         public int $chatId,
@@ -51,7 +51,7 @@ readonly class Chat
             title: Json::string($data, 'title'),
             icon: \is_array($iconData) ? Image::fromArray($iconData) : null,
             ownerId: Json::int($data, 'owner_id'),
-            participants: Json::map($data, 'participants', static fn (mixed $item): User => User::fromArray((array) $item)),
+            participants: Json::intMap($data, 'participants'),
             link: Json::string($data, 'link'),
             description: Json::string($data, 'description'),
             dialogWithUser: \is_array($dialogWithUserData) ? UserWithPhoto::fromArray($dialogWithUserData) : null,
@@ -72,9 +72,7 @@ readonly class Chat
             'title' => $this->title,
             'icon' => $this->icon?->toArray(),
             'owner_id' => $this->ownerId,
-            'participants' => $this->participants === null
-                ? null
-                : array_map(static fn (User $user): array => $user->toArray(), $this->participants),
+            'participants' => $this->participants,
             'link' => $this->link,
             'description' => $this->description,
             'dialog_with_user' => $this->dialogWithUser?->toArray(),

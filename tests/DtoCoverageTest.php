@@ -159,7 +159,7 @@ final class DtoCoverageTest extends TestCase
             'title' => 'T',
             'icon' => ['url' => 'https://i.jpg'],
             'owner_id' => 1,
-            'participants' => [self::USER_ARRAY],
+            'participants' => [7 => 1000],
             'link' => 'https://max.ru/c/1',
             'description' => 'd',
             'dialog_with_user' => self::USER_ARRAY,
@@ -176,6 +176,7 @@ final class DtoCoverageTest extends TestCase
         $this->assertSame('T', $chat->title);
         $this->assertSame('https://i.jpg', $chat->icon?->url);
         $this->assertSame('hi', $chat->pinnedMessage?->body?->text);
+        $this->assertSame([7 => 1000], $chat->participants);
         $this->assertInstanceOf(UserWithPhoto::class, $chat->dialogWithUser);
     }
 

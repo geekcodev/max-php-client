@@ -240,4 +240,43 @@ final class Json
 
         return array_values(array_map($mapper, $list));
     }
+
+    /**
+     * Мапа «id => int»: участники чата приходят объектом
+     * `{"<user_id>": <время активности>}`, а не списком — см. docs/api-reference.md,
+     * раздел 9. Отсутствующее или null-значение — null; ключом ожидается числовой
+     * id (не строка), значением — целое.
+     *
+     * @return array<int, int>|null
+     */
+    public static function intMap(array $data, string $key): ?array
+    {
+        $map = self::array_($data, $key);
+        if ($map === null) {
+            return null;
+        }
+
+        $result = [];
+        foreach ($map as $id => $value) {
+            if (!\is_int($id)) {
+                throw new InvalidResponseException(sprintf(
+                    'Field "%s" key must be an integer id, got %s.',
+                    $key,
+                    self::describe($id),
+                ));
+            }
+
+            if (!\is_int($value)) {
+                throw new InvalidResponseException(sprintf(
+                    'Field "%s" value must be an integer, got %s.',
+                    $key,
+                    self::describe($value),
+                ));
+            }
+
+            $result[$id] = $value;
+        }
+
+        return $result;
+    }
 }

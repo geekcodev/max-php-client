@@ -177,7 +177,9 @@
 - `BotInfo` = UserWithPhoto + commands?
 - `ChatMember` = UserWithPhoto + last_access_time, is_owner, is_admin, join_time, permissions?, alias?
 - `Chat` (chat_id, type, status, title?, icon?, last_event_time, participants_count, owner_id?, participants?,
-  is_public, link?, description?, dialog_with_user?, messages_count?, pinned_message?)
+  is_public, link?, description?, dialog_with_user?, messages_count?, pinned_message?) — `participants` приходит картой
+  `user_id => время последней активности` (Unix, мс), а не списком пользователей (раздел 9), null для диалогов и списков
+  чатов; официальная спека отмечает поле как видимое только админам чата (`visible for chat admins only`)
 - `Message` (sender?, recipient, timestamp, link?, body?, stat?, url?)
 - `MessageBody` (mid, seq, text?, attachments?, markup?: list<MarkupElement>, caption?[deprecated], format?[deprecated])
 - `MarkupElement` (type, from, length, url?[link], user_id?/user_link?[user_mention]) — разобранная разметка ответа
@@ -218,5 +220,6 @@
 | `message.link.sender` в новой спеке             | объект `User` (раньше объявлялся int64); в проде — и строка     | `LinkedMessage::$senderUser` (User) + `LinkedMessage::$sender` (?int) с tolerant-разбором (v1.1.6) |
 | `CommentMessage.sender`                         | `null`, если комментарий опубликован от имени канала            | nullable, без исключения                                                                           |
 | `ContactAttachmentPayload.vcf_phone`            | поле есть только в исходящем payload, во входящем отсутствует   | номер извлекается из `vcf_info`: `ContactPhoneExtractor::fromVcf()` (v1.1.7)                       |
+| `Chat.participants` в проде — карта, не список  | объект `{user_id: <время активности>}` в миллисекундах          | `Json::intMap()`; `Chat::$participants` — `array<int, int>` `user_id => активность` (v1.1.9)       |
 
 Каждое такое расхождение фиксируется в `.agents/journals/sessions/` и в `.agents/release/RELEASE_NOTES_vX.Y.Z.md`.
