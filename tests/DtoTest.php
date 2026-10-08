@@ -13,6 +13,7 @@ use GeekCo\MaxPhpClient\Enum\AttachmentType;
 use GeekCo\MaxPhpClient\Enum\ChatStatus;
 use GeekCo\MaxPhpClient\Enum\ChatType;
 use GeekCo\MaxPhpClient\Enum\UpdateType;
+use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -38,6 +39,41 @@ final class DtoTest extends TestCase
         $decoded = Chat::fromArray($chat->toArray());
         $this->assertSame($chat->chatId, $decoded->chatId);
         $this->assertSame($chat->isPublic, $decoded->isPublic);
+    }
+
+    #[Test]
+    public function it_parses_participants_as_an_activity_map(): void
+    {
+        $chat = Chat::fromArray([
+            'chat_id' => -79032376695376,
+            'type' => 'chat',
+            'status' => 'active',
+            'last_event_time' => 1791451784417,
+            'participants_count' => 5,
+            'is_public' => false,
+            'title' => 'Team',
+            'participants' => ['46493418' => 1791451784417, '394979746' => 0],
+        ]);
+
+        $this->assertSame([46493418 => 1791451784417, 394979746 => 0], $chat->participants);
+        $this->assertSame(-79032376695376, $chat->chatId);
+        $this->assertSame('Team', $chat->title);
+    }
+
+    #[Test]
+    public function it_rejects_a_participants_list(): void
+    {
+        $this->expectException(InvalidResponseException::class);
+
+        Chat::fromArray([
+            'chat_id' => 1,
+            'type' => 'chat',
+            'status' => 'active',
+            'last_event_time' => 1,
+            'participants_count' => 1,
+            'is_public' => false,
+            'participants' => [['user_id' => 7, 'first_name' => 'Ivan', 'is_bot' => false]],
+        ]);
     }
 
     #[Test]
