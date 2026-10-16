@@ -116,6 +116,7 @@ php -S 0.0.0.0:8080 examples/echo-bot-webhook.php
 | `examples/send-to-user.php`          | Идентификация пользователя и отправка ему личного сообщения                        |
 | `examples/set-commands.php`          | Установка команд бота (`editBotCommands`)                                          |
 | `examples/verify-contact.php`        | Верификация контакта из кнопки `request_contact` и извлечение номера               |
+| `examples/verify-webapp-contact.php` | Верификация контакта мини-приложения (`requestContact`) и извлечение номера        |
 | `examples/verify-webapp-data.php`    | Верификация стартовых данных мини-приложения (`WebAppDataValidator`)               |
 
 **Как определить пользователя и отправить ему сообщение.** Бот получает `user_id` и `chat_id` диалога из любого апдейта
@@ -349,6 +350,13 @@ try {
 - `WebAppDataValidator::resolve()` дополнительно извлекает `user_id`/`chat_id` (DTO `WebAppIdentity`) и при заданном
   `maxAge` отбрасывает устаревшие `auth_date` (replay-защита). `verifyFromUrl()`/`resolveFromUrl()` понимают как
   query-параметр `?WebAppData=...`, так и фрагмент `#WebAppData=...`.
+- Номер телефона, затребованный самим мини-приложением (`window.WebApp.requestContact()`), — это **другой** механизм,
+  чем контакт по кнопке `request_contact`: сервер MAX подписывает
+  `hash = HMAC-SHA256("authDate=<v>\nphone=<v>\nuserId=<v>", bot_token)`, где `phone` — только цифры без `+`.
+  `WebAppContactVerifier::verify($authDate, $phone, $userId, $hash)` проверяет подпись, `resolve(...)` возвращает
+  подтверждённый `Dto\WebAppContact` (номер в цифрах, `userId`, `authDate`); при заданном `maxAge` отбрасывается
+  устаревший `authDate`. Хэш принимается в hex или base64 (стандартной и URL-safe). Пример —
+  `examples/verify-webapp-contact.php`.
 - Секреты и токены никогда не логируются.
 - Все URL валидируются (`https://`, без SSRF).
 - Постоянновременное сравнение секретов через `hash_equals`.
@@ -443,6 +451,16 @@ MAX_API_TOKEN=<token> docker run --rm --network host \
 OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
 
 ## История изменений
+
+### v1.1.10 — `WebAppContactVerifier`: номер телефона из моста мини-приложения
+
+- Новый `Security\WebAppContactVerifier` — серверная проверка подписи контакта, полученного мини-приложением через
+  `window.WebApp.requestContact()` (это отдельный механизм от кнопки `request_contact`): подпись
+  `HMAC-SHA256("authDate=<v>\nphone=<v>\nuserId=<v>", bot_token)`, `phone` без `+`, хэш в hex или base64, при заданном
+  `maxAge` — replay-защита по `authDate`.
+- Новый `Dto\WebAppContact` (`userId`, `authDate`, `phone`) — подтверждённый контакт из `resolve()`.
+- Внутренний `Internal\HashMatcher` — общее сравнение hex/base64-хэшей; на него переведён `ContactVerifier`
+  (публичное поведение не менялось).
 
 ### v1.1.9 — `Chat::$participants`: карта участников вместо списка (см. GitHub Release v1.1.9)
 
