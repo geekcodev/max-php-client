@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Security;
 
+use GeekCo\MaxPhpClient\Internal\HashMatcher;
+
 final class ContactVerifier
 {
     public function __construct(
@@ -44,47 +46,6 @@ final class ContactVerifier
     {
         $expected = hash_hmac('sha256', $vcfInfo, $this->accessToken, true);
 
-        if ($this->matchesHex($expected, $hash)) {
-            return true;
-        }
-
-        foreach ($this->base64Variants($hash) as $variant) {
-            if (hash_equals($expected, $variant)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function matchesHex(string $expected, string $hash): bool
-    {
-        if (strlen($hash) !== 64 || ! ctype_xdigit($hash)) {
-            return false;
-        }
-
-        $decoded = hex2bin($hash);
-
-        return $decoded !== false && hash_equals($expected, $decoded);
-    }
-
-    /**
-     * Декодирование base64: стандартный алфавит и URL-safe, с паддингом и без.
-     *
-     * @return list<string> непустые кандидаты (только успешно декодированные)
-     */
-    private function base64Variants(string $hash): array
-    {
-        $variants = [];
-
-        foreach ([$hash, strtr($hash, '-_', '+/')] as $candidate) {
-            $decoded = base64_decode($candidate, true);
-
-            if ($decoded !== false) {
-                $variants[] = $decoded;
-            }
-        }
-
-        return $variants;
+        return HashMatcher::matches($expected, $hash);
     }
 }

@@ -109,6 +109,13 @@
   таких выборок нет, ядро не нормализует номер; разбор международных форматов — задача потребителя, при необходимости с
   библиотекой типа `giggsey/libphonenumber`.
 
+- Контакт из моста мини-приложения `window.WebApp.requestContact()` — отдельный механизм, не связанный с кнопкой
+  `request_contact`: подпись `HMAC-SHA256("authDate=<v>\nphone=<v>\nuserId=<v>", bot_token)` (ключи в алфавитном
+  порядке `authDate` → `phone` → `userId`, склейка через `\n`, телефон — только цифры без `+`), проверка —
+  `Security\WebAppContactVerifier` (v1.1.10), подтверждено продакшеном интегратора. Ограничение MAX: данные
+  `requestContact()` используются только для взаимодействия с текущим мини-приложением, поэтому номер из моста не стоит
+  трактовать как универсальный идентификатор вне этого сценария.
+
 ## 8. Эндпоинты
 
 | Метод  | Путь                                         | operationId          | Описание                                                                                                   |
@@ -207,19 +214,20 @@
 
 Прод-поведение важнее спеки, когда речь о типах значений. Зафиксированные случаи (не перепроверять без причины):
 
-| Случай                                          | Что приходит                                                    | Как обработано в коде                                                                              |
-|-------------------------------------------------|-----------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
-| `message.link.sender` объявлен `int64`          | строка `"277570130"` (и варианты: float, пробелы)               | `Json::tolerantInt()`; `LinkedMessage::$sender` — `?int` (v1.1.4, v1.1.5)                          |
-| `request_contact`: `hash` в hex                 | base64, стандартный и URL-safe, с паддингом и без               | `ContactVerifier` принимает обе формы (v1.1.2)                                                     |
-| `vcf_info` с экранированными переводами строк   | после `json_decode` — реальные CRLF + перевод после `END:VCARD` | `ContactVerifier` хэширует raw-байты (v1.1.3)                                                      |
-| `join_time`, `last_activity_time`               | Unix в миллисекундах                                            | без деления на 1000 (проверено)                                                                    |
-| `attachment.not.ready`                          | ошибка 400 сразу после загрузки                                 | ретрай с экспоненциальной задержкой                                                                |
-| `sendAnswer` без `message` и без `notification` | ошибка API                                                      | fail-fast на клиенте                                                                               |
-| Шаг 2 загрузки фото                             | токен внутри `photos`-словаря                                   | извлечение токена из `photos`                                                                      |
-| `MarkupElement.discriminator.mapping`           | ключ `underlined`, а в enum `Markup` — `underline`              | следовать enum: `Markup::Underline = 'underline'` (v1.1.6)                                         |
-| `message.link.sender` в новой спеке             | объект `User` (раньше объявлялся int64); в проде — и строка     | `LinkedMessage::$senderUser` (User) + `LinkedMessage::$sender` (?int) с tolerant-разбором (v1.1.6) |
-| `CommentMessage.sender`                         | `null`, если комментарий опубликован от имени канала            | nullable, без исключения                                                                           |
-| `ContactAttachmentPayload.vcf_phone`            | поле есть только в исходящем payload, во входящем отсутствует   | номер извлекается из `vcf_info`: `ContactPhoneExtractor::fromVcf()` (v1.1.7)                       |
-| `Chat.participants` в проде — карта, не список  | объект `{user_id: <время активности>}` в миллисекундах          | `Json::intMap()`; `Chat::$participants` — `array<int, int>` `user_id => активность` (v1.1.9)       |
+| Случай                                                                  | Что приходит                                                                                    | Как обработано в коде                                                                              |
+|-------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
+| `message.link.sender` объявлен `int64`                                  | строка `"277570130"` (и варианты: float, пробелы)                                               | `Json::tolerantInt()`; `LinkedMessage::$sender` — `?int` (v1.1.4, v1.1.5)                          |
+| `request_contact`: `hash` в hex                                         | base64, стандартный и URL-safe, с паддингом и без                                               | `ContactVerifier` принимает обе формы (v1.1.2)                                                     |
+| `vcf_info` с экранированными переводами строк                           | после `json_decode` — реальные CRLF + перевод после `END:VCARD`                                 | `ContactVerifier` хэширует raw-байты (v1.1.3)                                                      |
+| `join_time`, `last_activity_time`                                       | Unix в миллисекундах                                                                            | без деления на 1000 (проверено)                                                                    |
+| `attachment.not.ready`                                                  | ошибка 400 сразу после загрузки                                                                 | ретрай с экспоненциальной задержкой                                                                |
+| `sendAnswer` без `message` и без `notification`                         | ошибка API                                                                                      | fail-fast на клиенте                                                                               |
+| Шаг 2 загрузки фото                                                     | токен внутри `photos`-словаря                                                                   | извлечение токена из `photos`                                                                      |
+| `MarkupElement.discriminator.mapping`                                   | ключ `underlined`, а в enum `Markup` — `underline`                                              | следовать enum: `Markup::Underline = 'underline'` (v1.1.6)                                         |
+| `message.link.sender` в новой спеке                                     | объект `User` (раньше объявлялся int64); в проде — и строка                                     | `LinkedMessage::$senderUser` (User) + `LinkedMessage::$sender` (?int) с tolerant-разбором (v1.1.6) |
+| `CommentMessage.sender`                                                 | `null`, если комментарий опубликован от имени канала                                            | nullable, без исключения                                                                           |
+| `ContactAttachmentPayload.vcf_phone`                                    | поле есть только в исходящем payload, во входящем отсутствует                                   | номер извлекается из `vcf_info`: `ContactPhoneExtractor::fromVcf()` (v1.1.7)                       |
+| `Chat.participants` в проде — карта, не список                          | объект `{user_id: <время активности>}` в миллисекундах                                          | `Json::intMap()`; `Chat::$participants` — `array<int, int>` `user_id => активность` (v1.1.9)       |
+| Подпись контакта моста (`requestContact`) описана в доке только словами | рабочая схема: `HMAC-SHA256("authDate=<v>\nphone=<v>\nuserId=<v>", bot_token)`, `phone` без `+` | `WebAppContactVerifier` (v1.1.10), подтверждено продакшеном интегратора                            |
 
 Каждое такое расхождение фиксируется в `.agents/journals/sessions/` и в `.agents/release/RELEASE_NOTES_vX.Y.Z.md`.
