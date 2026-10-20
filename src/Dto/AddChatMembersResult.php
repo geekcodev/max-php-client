@@ -7,7 +7,9 @@ namespace GeekCo\MaxPhpClient\Dto;
 use GeekCo\MaxPhpClient\Internal\Json;
 
 /**
- * @deprecated The method that returns it is gone from the specification; removed in v2.0.0.
+ * Ответ `addChatMembers`: `success` и списки пользователей, которых добавить
+ * не удалось. Метод присутствует в спеке и в официальной `schema.yaml`
+ * (с 9 сентября 2026 ограничен со стороны MAX, см. `ApiClient::addChatMembers()`).
  */
 readonly class AddChatMembersResult
 {

@@ -84,8 +84,12 @@
 - Успех операций: `SuccessResponse {success, message?}`.
 - Контакт по кнопке `request_contact`: `hash = HMAC-SHA256(access_token, vcf_info)`, где `vcf_info` — **сырые байты**
   (реальные CRLF и концевой перевод после `END:VCARD`, v1.1.3); если транспорт оставил литеральные `\r\n`, они
-  восстанавливаются в реальные CRLF и проверка повторяется. Хэш приходит в hex или base64 (v1.1.2). Поле
-  `vcf_phone` приходит **только в исходящем** payload (`ContactAttachmentRequestPayload`), во **входящем**
+  восстанавливаются в реальные CRLF и проверка повторяется. Хэш приходит в hex или base64 (v1.1.2). Во **входящем**
+  payload `hash` может отсутствовать или прийти `null` (поле nullable в спеке MAX): разбор не падает,
+  `ContactAttachmentPayload::$hash` равен пустой строке, `toArray()` такое поле не отдаёт, а
+  `ContactVerifier::verify()` с пустым хэшем возвращает `false` — подпись не проходит, телефон из такого контакта
+  считается неподтверждённым (fail-closed, v1.1.11). Неверный тип поля (не строка и не `null`) остаётся ошибкой разбора.
+  Поле `vcf_phone` приходит **только в исходящем** payload (`ContactAttachmentRequestPayload`), во **входящем**
   `ContactAttachmentPayload` его нет — номер телефона берётся разбором `vcf_info` через
   `Security\ContactPhoneExtractor::fromVcf()` (v1.1.7). Рекомендуемый порядок в потребителе:
   `$contact->vcfPhone ?? ContactPhoneExtractor::fromVcf((string) $contact->vcfInfo)` — тогда код переживёт появление
@@ -110,55 +114,55 @@
   библиотекой типа `giggsey/libphonenumber`.
 
 - Контакт из моста мини-приложения `window.WebApp.requestContact()` — отдельный механизм, не связанный с кнопкой
-  `request_contact`: подпись `HMAC-SHA256("authDate=<v>\nphone=<v>\nuserId=<v>", bot_token)` (ключи в алфавитном
-  порядке `authDate` → `phone` → `userId`, склейка через `\n`, телефон — только цифры без `+`), проверка —
+  `request_contact`: подпись `HMAC-SHA256("authDate=<v>\nphone=<v>\nuserId=<v>", bot_token)` (ключи в алфавитном порядке
+  `authDate` → `phone` → `userId`, склейка через `\n`, телефон — только цифры без `+`), проверка —
   `Security\WebAppContactVerifier` (v1.1.10), подтверждено продакшеном интегратора. Ограничение MAX: данные
   `requestContact()` используются только для взаимодействия с текущим мини-приложением, поэтому номер из моста не стоит
   трактовать как универсальный идентификатор вне этого сценария.
 
 ## 8. Эндпоинты
 
-| Метод  | Путь                                         | operationId          | Описание                                                                                                   |
-|--------|----------------------------------------------|----------------------|------------------------------------------------------------------------------------------------------------|
-| GET    | `/me`                                        | `getMe`              | Инфо о боте (BotInfo)                                                                                      |
-| PATCH  | `/me/commands`                               | `editBotCommands`    | Команды бота (макс 32; `[]` — удалить все)                                                                 |
-| GET    | `/chats`                                     | `getChats`           | **DEPRECATED**                                                                                             |
-| GET    | `/chats/{chatId}`                            | `getChat`            | Инфо о чате/канале                                                                                         |
-| PATCH  | `/chats/{chatId}`                            | `editChat`           | title/icon/pin/notify                                                                                      |
-| POST   | `/chats/{chatId}/actions`                    | `sendBotAction`      | SenderAction                                                                                               |
-| GET    | `/chats/{chatId}/pin`                        | `getPinnedMessage`   | message или null                                                                                           |
-| PUT    | `/chats/{chatId}/pin`                        | `pinMessage`         | body: message_id, notify?                                                                                  |
-| DELETE | `/chats/{chatId}/pin`                        | `unpinMessage`       | Открепление                                                                                                |
-| GET    | `/chats/{chatId}/members/me`                 | `getBotMembership`   | Членство бота (ChatMember)                                                                                 |
-| DELETE | `/chats/{chatId}/members/me`                 | `removeBotFromChat`  | Удаление бота                                                                                              |
-| GET    | `/chats/{chatId}/members/admins`             | `getChatAdmins`      | Список админов + marker                                                                                    |
-| POST   | `/chats/{chatId}/members/admins`             | `addChatAdmin`       | Назначить админа (PUT-семантика)                                                                           |
-| DELETE | `/chats/{chatId}/members/admins/{userId}`    | `removeChatAdmin`    | Снять админа                                                                                               |
-| GET    | `/chats/{chatId}/members`                    | `getChatMembers`     | Участники; query: user_ids?, marker?, count?(1-100, default 20)                                            |
-| POST   | `/chats/{chatId}/members`                    | `addChatMembers`     | **УБРАН из спеки**; метод клиента `@deprecated`                                                            |
-| DELETE | `/chats/{chatId}/members`                    | `removeChatMember`   | query: user_id (обяз.), block?(bool, default false)                                                        |
-| GET    | `/subscriptions`                             | `getSubscriptions`   | Список webhook-подписок                                                                                    |
-| POST   | `/subscriptions`                             | `createSubscription` | body: url(https), update_types?, secret?                                                                   |
-| DELETE | `/subscriptions`                             | `deleteSubscription` | query: url (обяз.)                                                                                         |
-| GET    | `/updates`                                   | `getUpdates`         | Long Polling; query: limit(1-1000, d100), timeout(0-90, d30), marker?, types?                              |
-| POST   | `/uploads`                                   | `uploadMedia`        | query: type (обяз.); ответ UploadedInfo {url (обяз.), token?}                                              |
-| GET    | `/messages`                                  | `getMessages`        | query: chat_id? message_ids?(csv), from?, to?, count?(1-100, d50)                                          |
-| POST   | `/messages`                                  | `sendMessage`        | query: user_id? chat_id? (одно из), disable_link_preview?; body: NewMessageBody                            |
-| PUT    | `/messages`                                  | `editMessage`        | query: message_id (обяз.); body: NewMessageBody                                                            |
-| DELETE | `/messages`                                  | `deleteMessage`      | query: message_id (обяз.)                                                                                  |
-| GET    | `/messages/{messageId}`                      | `getMessageById`     | path: messageId (строка, `[a-zA-Z0-9_-]+`)                                                                 |
-| GET    | `/videos/{videoToken}`                       | `getVideoInfo`       | Инфо о видео (VideoInfo)                                                                                   |
-| POST   | `/answers`                                   | `sendAnswer`         | query: callback_id (обяз.), disable_link_preview?; body: {message?: NewMessageBody, notification?: string} |
-| GET    | `/messages/{messageId}/comments`             | `getComments`        | query: comment_ids?(csv), after?, before?, count?(default 50); ответ {messages: CommentMessage[]}          |
-| POST   | `/messages/{messageId}/comments`             | `sendComment`        | query: disable_link_preview?; body: NewCommentBody; ответ {message: CommentMessage}                        |
-| PUT    | `/messages/{messageId}/comments`             | `editComment`        | query: comment_id (обяз. = mid комментария); body: NewCommentBody                                          |
-| DELETE | `/messages/{messageId}/comments`             | `deleteComment`      | query: comment_id (обяз. = mid комментария)                                                                |
-| GET    | `/messages/{messageId}/comments/{commentId}` | `getComment`         | ответ CommentMessage                                                                                       |
+| Метод  | Путь                                         | operationId          | Описание                                                                                                           |
+|--------|----------------------------------------------|----------------------|--------------------------------------------------------------------------------------------------------------------|
+| GET    | `/me`                                        | `getMe`              | Инфо о боте (BotInfo)                                                                                              |
+| PATCH  | `/me/commands`                               | `editBotCommands`    | Команды бота (макс 32; `[]` — удалить все)                                                                         |
+| GET    | `/chats`                                     | `getChats`           | **DEPRECATED**                                                                                                     |
+| GET    | `/chats/{chatId}`                            | `getChat`            | Инфо о чате/канале                                                                                                 |
+| PATCH  | `/chats/{chatId}`                            | `editChat`           | title/icon/pin/notify                                                                                              |
+| POST   | `/chats/{chatId}/actions`                    | `sendBotAction`      | SenderAction                                                                                                       |
+| GET    | `/chats/{chatId}/pin`                        | `getPinnedMessage`   | message или null                                                                                                   |
+| PUT    | `/chats/{chatId}/pin`                        | `pinMessage`         | body: message_id, notify?                                                                                          |
+| DELETE | `/chats/{chatId}/pin`                        | `unpinMessage`       | Открепление                                                                                                        |
+| GET    | `/chats/{chatId}/members/me`                 | `getBotMembership`   | Членство бота (ChatMember)                                                                                         |
+| DELETE | `/chats/{chatId}/members/me`                 | `removeBotFromChat`  | Удаление бота                                                                                                      |
+| GET    | `/chats/{chatId}/members/admins`             | `getChatAdmins`      | Список админов + marker                                                                                            |
+| POST   | `/chats/{chatId}/members/admins`             | `addChatAdmin`       | Назначить админа (PUT-семантика)                                                                                   |
+| DELETE | `/chats/{chatId}/members/admins/{userId}`    | `removeChatAdmin`    | Снять админа                                                                                                       |
+| GET    | `/chats/{chatId}/members`                    | `getChatMembers`     | Участники; query: user_ids?, marker?, count?(1-100, default 20)                                                    |
+| POST   | `/chats/{chatId}/members`                    | `addChatMembers`     | С 9 сентября 2026 ограничен MAX; ответ: success? + failed_user_ids? + failed_user_details?{error_code, user_ids[]} |
+| DELETE | `/chats/{chatId}/members`                    | `removeChatMember`   | query: user_id (обяз.), block?(bool, default false)                                                                |
+| GET    | `/subscriptions`                             | `getSubscriptions`   | Список webhook-подписок                                                                                            |
+| POST   | `/subscriptions`                             | `createSubscription` | body: url(https), update_types?, secret?                                                                           |
+| DELETE | `/subscriptions`                             | `deleteSubscription` | query: url (обяз.)                                                                                                 |
+| GET    | `/updates`                                   | `getUpdates`         | Long Polling; query: limit(1-1000, d100), timeout(0-90, d30), marker?, types?                                      |
+| POST   | `/uploads`                                   | `uploadMedia`        | query: type (обяз.); ответ UploadedInfo {url (обяз.), token?}                                                      |
+| GET    | `/messages`                                  | `getMessages`        | query: chat_id? message_ids?(csv), from?, to?, count?(1-100, d50)                                                  |
+| POST   | `/messages`                                  | `sendMessage`        | query: user_id? chat_id? (одно из), disable_link_preview?; body: NewMessageBody                                    |
+| PUT    | `/messages`                                  | `editMessage`        | query: message_id (обяз.); body: NewMessageBody                                                                    |
+| DELETE | `/messages`                                  | `deleteMessage`      | query: message_id (обяз.)                                                                                          |
+| GET    | `/messages/{messageId}`                      | `getMessageById`     | path: messageId (строка, `[a-zA-Z0-9_-]+`)                                                                         |
+| GET    | `/videos/{videoToken}`                       | `getVideoInfo`       | Инфо о видео (VideoInfo)                                                                                           |
+| POST   | `/answers`                                   | `sendAnswer`         | query: callback_id (обяз.), disable_link_preview?; body: {message?: NewMessageBody, notification?: string}         |
+| GET    | `/messages/{messageId}/comments`             | `getComments`        | query: comment_ids?(csv), after?, before?, count?(default 50); ответ {messages: CommentMessage[]}                  |
+| POST   | `/messages/{messageId}/comments`             | `sendComment`        | query: disable_link_preview?; body: NewCommentBody; ответ {message: CommentMessage}                                |
+| PUT    | `/messages/{messageId}/comments`             | `editComment`        | query: comment_id (обяз. = mid комментария); body: NewCommentBody                                                  |
+| DELETE | `/messages/{messageId}/comments`             | `deleteComment`      | query: comment_id (обяз. = mid комментария)                                                                        |
+| GET    | `/messages/{messageId}/comments/{commentId}` | `getComment`         | ответ CommentMessage                                                                                               |
 
 ### Enums
 
 - **ChatType**: `chat`, `channel`, `dialog`
-- **ChatStatus**: `active`, `removed`, `left`, `closed`
+- **ChatStatus**: `active`, `removed`, `left`, `closed`, `suspended` (v1.1.11; до этого `suspended` ронял разбор чата)
 - **SenderAction**: `typing_on`, `sending_photo`, `sending_video`, `sending_audio`, `sending_file`
 - **UploadType**: `image`, `video`, `audio`, `file`
 - **TextFormat**: `markdown`, `html`
@@ -195,39 +199,48 @@
   `SendCommentResult` ({message}), `NewCommentBody` (text ≤ 4000, format?, link?) — вложений нет
 - `NewMessageBody` (text?, attachments?, link?, notify?, format) — attachments: `null`=без изменений,
   `[]`=удалить все
-- `Attachment` (type, payload?, latitude?, longitude?) — payload discriminated по `token`, oneOf из 7 типов payload;
-  координаты локации на верхнем уровне (вложенная форма тоже разбирается)
+- `Attachment` (type, payload?, latitude?, longitude?, filename?) — payload discriminated по `token`, oneOf из 7 типов
+  payload; координаты локации на верхнем уровне (вложенная форма тоже разбирается); метаданные вложения (`filename`,
+  `size`,
+  `duration`, `width`, `height`, `thumbnail`, `transcription`) официальная `schema.yaml` объявляет на верхнем уровне
+  подтипа (video/audio/file), а спека max-openapi держит их в `payload`: разбираются обе формы с приоритетом верхнего
+  уровня, `toArray()` пишет их в `payload` (v1.1.11); `filename` дополнительно доступно как `Attachment::$filename`,
+  наружу отдаётся на верхнем уровне
 - `AttachmentRequest` (type, payload{token?, url?, code?, buttons?}, latitude?, longitude?)
 - `NewMessageLink` (type, mid, chat?[deprecated])
 - `UploadedInfo` (url, token?) — ответ `POST /uploads`; `UploadResult` — предок, `@deprecated`
 - `InlineKeyboardButton` (type, text, payload?, url?, intent?, app_data?) — макс 210 кнопок / 30 рядов / 7 в ряду (3 для
   link/open_app/request_geo_location/request_contact)
-- `Update` (update_type, timestamp, chat_id, user|null, is_channel?, message?, callback{callback_id, payload?,
-  message}?, user_locale?, title?, payload?, muted_until?, message_id?, user_id?, inviter_id?, admin_id?, post_id?,
-  bot_id?, is_admin?, permissions?) — для `comment_created`/`comment_edited` поле `message` разбирается в
-  `Update::$comment` (`CommentMessage`), `$message` остаётся null
+- `Update` (update_type, timestamp, chat_id, user|null, is_channel?, message?, callback{callback_id, payload?, message?,
+  timestamp?, user?}?, user_locale?, title?, payload?, muted_until?, message_id?, user_id?, inviter_id?, admin_id?,
+  post_id?, bot_id?, is_admin?, permissions?) — для `comment_created`/`comment_edited` поле `message` разбирается в
+  `Update::$comment` (`CommentMessage`), `$message` остаётся null; `user` берётся с верхнего уровня, затем из
+  `message.sender`, затем из `callback.user` (v1.1.11)
 - `Recipient` (chat_id, chat_type, post_id?)
-- `Subscription` (url, update_types?)
+- `Subscription` (url, update_types?, time? — `time` объявлено обязательным в спеке и официальной схеме, v1.1.11)
 - `ErrorResponse` (code, message, error?)
 
 ## 9. Что делать при расхождении «спека vs реальный API»
 
 Прод-поведение важнее спеки, когда речь о типах значений. Зафиксированные случаи (не перепроверять без причины):
 
-| Случай                                                                  | Что приходит                                                                                    | Как обработано в коде                                                                              |
-|-------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
-| `message.link.sender` объявлен `int64`                                  | строка `"277570130"` (и варианты: float, пробелы)                                               | `Json::tolerantInt()`; `LinkedMessage::$sender` — `?int` (v1.1.4, v1.1.5)                          |
-| `request_contact`: `hash` в hex                                         | base64, стандартный и URL-safe, с паддингом и без                                               | `ContactVerifier` принимает обе формы (v1.1.2)                                                     |
-| `vcf_info` с экранированными переводами строк                           | после `json_decode` — реальные CRLF + перевод после `END:VCARD`                                 | `ContactVerifier` хэширует raw-байты (v1.1.3)                                                      |
-| `join_time`, `last_activity_time`                                       | Unix в миллисекундах                                                                            | без деления на 1000 (проверено)                                                                    |
-| `attachment.not.ready`                                                  | ошибка 400 сразу после загрузки                                                                 | ретрай с экспоненциальной задержкой                                                                |
-| `sendAnswer` без `message` и без `notification`                         | ошибка API                                                                                      | fail-fast на клиенте                                                                               |
-| Шаг 2 загрузки фото                                                     | токен внутри `photos`-словаря                                                                   | извлечение токена из `photos`                                                                      |
-| `MarkupElement.discriminator.mapping`                                   | ключ `underlined`, а в enum `Markup` — `underline`                                              | следовать enum: `Markup::Underline = 'underline'` (v1.1.6)                                         |
-| `message.link.sender` в новой спеке                                     | объект `User` (раньше объявлялся int64); в проде — и строка                                     | `LinkedMessage::$senderUser` (User) + `LinkedMessage::$sender` (?int) с tolerant-разбором (v1.1.6) |
-| `CommentMessage.sender`                                                 | `null`, если комментарий опубликован от имени канала                                            | nullable, без исключения                                                                           |
-| `ContactAttachmentPayload.vcf_phone`                                    | поле есть только в исходящем payload, во входящем отсутствует                                   | номер извлекается из `vcf_info`: `ContactPhoneExtractor::fromVcf()` (v1.1.7)                       |
-| `Chat.participants` в проде — карта, не список                          | объект `{user_id: <время активности>}` в миллисекундах                                          | `Json::intMap()`; `Chat::$participants` — `array<int, int>` `user_id => активность` (v1.1.9)       |
-| Подпись контакта моста (`requestContact`) описана в доке только словами | рабочая схема: `HMAC-SHA256("authDate=<v>\nphone=<v>\nuserId=<v>", bot_token)`, `phone` без `+` | `WebAppContactVerifier` (v1.1.10), подтверждено продакшеном интегратора                            |
+| Случай                                                                                                               | Что приходит                                                                                    | Как обработано в коде                                                                               |
+|----------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| `message.link.sender` объявлен `int64`                                                                               | строка `"277570130"` (и варианты: float, пробелы)                                               | `Json::tolerantInt()`; `LinkedMessage::$sender` — `?int` (v1.1.4, v1.1.5)                           |
+| `request_contact`: `hash` в hex                                                                                      | base64, стандартный и URL-safe, с паддингом и без                                               | `ContactVerifier` принимает обе формы (v1.1.2)                                                      |
+| `vcf_info` с экранированными переводами строк                                                                        | после `json_decode` — реальные CRLF + перевод после `END:VCARD`                                 | `ContactVerifier` хэширует raw-байты (v1.1.3)                                                       |
+| `join_time`, `last_activity_time`                                                                                    | Unix в миллисекундах                                                                            | без деления на 1000 (проверено)                                                                     |
+| `attachment.not.ready`                                                                                               | ошибка 400 сразу после загрузки                                                                 | ретрай с экспоненциальной задержкой                                                                 |
+| `sendAnswer` без `message` и без `notification`                                                                      | ошибка API                                                                                      | fail-fast на клиенте                                                                                |
+| Шаг 2 загрузки фото                                                                                                  | токен внутри `photos`-словаря                                                                   | извлечение токена из `photos`                                                                       |
+| `MarkupElement.discriminator.mapping`                                                                                | ключ `underlined`, а в enum `Markup` — `underline`                                              | следовать enum: `Markup::Underline = 'underline'` (v1.1.6)                                          |
+| `message.link.sender` в новой спеке                                                                                  | объект `User` (раньше объявлялся int64); в проде — и строка                                     | `LinkedMessage::$senderUser` (User) + `LinkedMessage::$sender` (?int) с tolerant-разбором (v1.1.6)  |
+| `CommentMessage.sender`                                                                                              | `null`, если комментарий опубликован от имени канала                                            | nullable, без исключения                                                                            |
+| `ContactAttachmentPayload.vcf_phone`                                                                                 | поле есть только в исходящем payload, во входящем отсутствует                                   | номер извлекается из `vcf_info`: `ContactPhoneExtractor::fromVcf()` (v1.1.7)                        |
+| `Chat.participants` в проде — карта, не список                                                                       | объект `{user_id: <время активности>}` в миллисекундах                                          | `Json::intMap()`; `Chat::$participants` — `array<int, int>` `user_id => активность` (v1.1.9)        |
+| Подпись контакта моста (`requestContact`) описана в доке только словами                                              | рабочая схема: `HMAC-SHA256("authDate=<v>\nphone=<v>\nuserId=<v>", bot_token)`, `phone` без `+` | `WebAppContactVerifier` (v1.1.10), подтверждено продакшеном интегратора                             |
+| Метаданные вложений: официальная `schema.yaml` — верхний уровень `*Attachment`, спека max-openapi — внутри `payload` | в проде значения на верхнем уровне подтипа                                                      | разбираются обе формы (приоритет верхнего уровня), `toArray()` пишет в `payload` (v1.1.11)          |
+| `FailedUserDetails`: спека — `{error_code, user_ids[]}`, прод — `{user_id, error}`                                   | ответ `addChatMembers`                                                                          | читаются обе формы; старый конструктор сохранён; `userId === 0` маркирует отсутствие поля (v1.1.11) |
+| `VideoAttachment.url`                                                                                                | наборы `mp4_144`…`mp4_1080` и `hls` (легаси `mp4`/`preview` в старых ответах)                   | все поля `VideoUrls` разбираются (v1.1.11)                                                          |
 
 Каждое такое расхождение фиксируется в `.agents/journals/sessions/` и в `.agents/release/RELEASE_NOTES_vX.Y.Z.md`.

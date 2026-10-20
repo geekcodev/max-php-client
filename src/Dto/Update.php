@@ -63,6 +63,9 @@ readonly class Update
         if (!\is_array($userData) && \is_array($callbackData) && \is_array($callbackData['message'] ?? null)) {
             $userData = $callbackData['message']['sender'] ?? null;
         }
+        if (!\is_array($userData) && \is_array($callbackData) && \is_array($callbackData['user'] ?? null)) {
+            $userData = $callbackData['user'];
+        }
 
         $chatId = Json::int($data, 'chat_id');
         $recipientData = \is_array($messageData) ? ($messageData['recipient'] ?? null) : null;

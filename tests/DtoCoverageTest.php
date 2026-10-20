@@ -181,6 +181,22 @@ final class DtoCoverageTest extends TestCase
     }
 
     #[Test]
+    public function it_parses_a_suspended_chat_status(): void
+    {
+        $chat = Chat::fromArray([
+            'chat_id' => 1,
+            'type' => 'chat',
+            'status' => 'suspended',
+            'last_event_time' => 1,
+            'participants_count' => 1,
+            'is_public' => false,
+        ]);
+
+        $this->assertSame(ChatStatus::Suspended, $chat->status);
+        $this->assertSame('suspended', $chat->toArray()['status']);
+    }
+
+    #[Test]
     public function it_parses_dialog_with_user_as_user_with_photo(): void
     {
         $array = [
@@ -580,6 +596,16 @@ final class DtoCoverageTest extends TestCase
     }
 
     #[Test]
+    public function it_reads_subscription_time(): void
+    {
+        $sub = Subscription::fromArray(['url' => 'https://x', 'time' => 1_700_000_000]);
+
+        $this->assertSame(1_700_000_000, $sub->time);
+        $this->assertSame(1_700_000_000, $sub->toArray()['time']);
+        $this->assertNull(Subscription::fromArray(['url' => 'https://x'])->time);
+    }
+
+    #[Test]
     public function it_roundtrips_an_upload_result(): void
     {
         $result = UploadResult::fromArray(['url' => 'https://u', 'token' => 't'])->toArray();
@@ -627,6 +653,36 @@ final class DtoCoverageTest extends TestCase
     public function it_roundtrips_a_failed_user_details(): void
     {
         $this->assertSame(['user_id' => 5, 'error' => 'blocked'], (new FailedUserDetails(5, 'blocked'))->toArray());
+    }
+
+    #[Test]
+    public function it_reads_the_specification_shape_of_failed_user_details(): void
+    {
+        $details = FailedUserDetails::fromArray([
+            'error_code' => 'add.participant.privacy',
+            'user_ids' => [5, 6],
+        ]);
+
+        $this->assertSame('add.participant.privacy', $details->errorCode);
+        $this->assertSame([5, 6], $details->userIds);
+        $this->assertSame(0, $details->userId);
+        $this->assertSame('', $details->error);
+        $this->assertSame(
+            ['error_code' => 'add.participant.privacy', 'user_ids' => [5, 6]],
+            $details->toArray(),
+        );
+    }
+
+    #[Test]
+    public function it_reads_the_production_shape_of_failed_user_details(): void
+    {
+        $details = FailedUserDetails::fromArray(['user_id' => 5, 'error' => 'blocked']);
+
+        $this->assertSame(5, $details->userId);
+        $this->assertSame('blocked', $details->error);
+        $this->assertNull($details->errorCode);
+        $this->assertNull($details->userIds);
+        $this->assertSame(['user_id' => 5, 'error' => 'blocked'], $details->toArray());
     }
 
     #[Test]
@@ -678,6 +734,23 @@ final class DtoCoverageTest extends TestCase
     }
 
     #[Test]
+    public function it_reads_callback_timestamp_and_user(): void
+    {
+        $callback = Callback::fromArray([
+            'callback_id' => 'c1',
+            'timestamp' => 1_700_000_000,
+            'user' => self::USER_ARRAY,
+        ]);
+
+        $this->assertSame(1_700_000_000, $callback->timestamp);
+        $this->assertSame(1, $callback->user?->userId);
+        $this->assertSame(1_700_000_000, $callback->toArray()['timestamp']);
+        $this->assertSame(1, $callback->toArray()['user']['user_id']);
+        $this->assertNull(Callback::fromArray(['callback_id' => 'c2'])->timestamp);
+        $this->assertNull(Callback::fromArray(['callback_id' => 'c2'])->user);
+    }
+
+    #[Test]
     public function it_roundtrips_an_update_with_callback(): void
     {
         $array = [
@@ -693,6 +766,36 @@ final class DtoCoverageTest extends TestCase
         $this->assertInstanceOf(Update::class, $update);
         $this->assertTrue($update->isChannel);
         $this->assertSame('p', $update->callback?->payload);
+    }
+
+    #[Test]
+    public function it_takes_the_user_from_a_callback_when_it_is_absent_elsewhere(): void
+    {
+        $update = Update::fromArray([
+            'update_type' => 'message_callback',
+            'timestamp' => 10,
+            'callback' => ['callback_id' => 'c1', 'timestamp' => 9, 'user' => self::USER_ARRAY],
+        ]);
+
+        $this->assertSame(1, $update->user?->userId);
+        $this->assertSame(9, $update->callback?->timestamp);
+        $this->assertNull($update->chatId);
+    }
+
+    #[Test]
+    public function it_prefers_the_message_sender_over_the_callback_user(): void
+    {
+        $update = Update::fromArray([
+            'update_type' => 'message_callback',
+            'timestamp' => 10,
+            'callback' => [
+                'callback_id' => 'c1',
+                'message' => [...self::MESSAGE_ARRAY, 'sender' => [...self::USER_ARRAY, 'user_id' => 42]],
+                'user' => self::USER_ARRAY,
+            ],
+        ]);
+
+        $this->assertSame(42, $update->user?->userId);
     }
 
     #[Test]

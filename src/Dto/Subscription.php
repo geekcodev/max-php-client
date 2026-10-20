@@ -14,6 +14,7 @@ readonly class Subscription
     public function __construct(
         public string $url,
         public ?array $updateTypes = null,
+        public ?int $time = null,
     ) {
     }
 
@@ -22,6 +23,7 @@ readonly class Subscription
         return new self(
             url: Json::requiredString($data, 'url'),
             updateTypes: Json::arrayOfStrings($data, 'update_types'),
+            time: Json::int($data, 'time'),
         );
     }
 
@@ -30,6 +32,7 @@ readonly class Subscription
         return array_filter([
             'url' => $this->url,
             'update_types' => $this->updateTypes,
+            'time' => $this->time,
         ], static fn (mixed $value): bool => $value !== null);
     }
 }

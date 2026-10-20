@@ -6,12 +6,16 @@ namespace GeekCo\MaxPhpClient\Tests\Dto;
 
 use GeekCo\MaxPhpClient\Dto\Attachment;
 use GeekCo\MaxPhpClient\Dto\AttachmentRequest;
+use GeekCo\MaxPhpClient\Dto\AudioAttachmentPayload;
 use GeekCo\MaxPhpClient\Dto\BotCommand;
 use GeekCo\MaxPhpClient\Dto\ContactAttachmentPayload;
+use GeekCo\MaxPhpClient\Dto\FileAttachmentPayload;
 use GeekCo\MaxPhpClient\Dto\InlineKeyboardButton;
 use GeekCo\MaxPhpClient\Dto\InlineKeyboardButtonRow;
 use GeekCo\MaxPhpClient\Dto\LinkedMessage;
 use GeekCo\MaxPhpClient\Dto\Recipient;
+use GeekCo\MaxPhpClient\Dto\VideoAttachmentPayload;
+use GeekCo\MaxPhpClient\Dto\VideoUrls;
 use GeekCo\MaxPhpClient\Enum\AttachmentType;
 use GeekCo\MaxPhpClient\Enum\ButtonType;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
@@ -80,7 +84,60 @@ final class AttachmentTest extends TestCase
 
         $this->assertNull($attachment->latitude);
         $this->assertNull($attachment->longitude);
+        $this->assertNull($attachment->filename);
         $this->assertSame(['type' => 'image', 'payload' => ['url' => 'https://u', 'token' => 't']], $attachment->toArray());
+    }
+
+    #[Test]
+    public function it_reads_a_filename_from_the_top_level_of_a_file_attachment(): void
+    {
+        $attachment = Attachment::fromArray([
+            'type' => 'file',
+            'filename' => 'Смета.pdf',
+            'payload' => ['url' => 'https://u', 'token' => 't'],
+        ]);
+
+        $this->assertSame('Смета.pdf', $attachment->filename);
+        $this->assertSame(
+            ['type' => 'file', 'payload' => ['url' => 'https://u', 'token' => 't', 'filename' => 'Смета.pdf'], 'filename' => 'Смета.pdf'],
+            $attachment->toArray(),
+        );
+    }
+
+    #[Test]
+    public function it_reads_a_filename_from_a_nested_payload(): void
+    {
+        $attachment = Attachment::fromArray([
+            'type' => 'file',
+            'payload' => ['url' => 'https://u', 'token' => 't', 'filename' => 'doc.docx'],
+        ]);
+
+        $this->assertSame('doc.docx', $attachment->filename);
+        $this->assertSame(
+            ['type' => 'file', 'payload' => ['url' => 'https://u', 'token' => 't', 'filename' => 'doc.docx'], 'filename' => 'doc.docx'],
+            $attachment->toArray(),
+        );
+    }
+
+    #[Test]
+    public function it_prefers_a_top_level_filename_over_a_nested_payload(): void
+    {
+        $attachment = Attachment::fromArray([
+            'type' => 'file',
+            'filename' => 'top.pdf',
+            'payload' => ['url' => 'https://u', 'token' => 't', 'filename' => 'nested.pdf'],
+        ]);
+
+        $this->assertSame('top.pdf', $attachment->filename);
+    }
+
+    #[Test]
+    public function it_rejects_a_non_string_filename(): void
+    {
+        $this->expectException(InvalidResponseException::class);
+        $this->expectExceptionMessage('Field "filename" must be a string.');
+
+        Attachment::fromArray(['type' => 'file', 'filename' => 42, 'payload' => ['url' => 'https://u']]);
     }
 
     #[Test]
@@ -148,10 +205,27 @@ final class AttachmentTest extends TestCase
     #[Test]
     public function it_reads_a_contact_attachment_without_a_hash(): void
     {
+        $payload = ContactAttachmentPayload::fromArray(['vcf_info' => 'BEGIN:VCARD']);
+
+        $this->assertSame('', $payload->hash);
+        $this->assertSame(['vcf_info' => 'BEGIN:VCARD'], $payload->toArray());
+    }
+
+    #[Test]
+    public function it_reads_a_contact_attachment_with_a_null_hash(): void
+    {
+        $payload = ContactAttachmentPayload::fromArray(['hash' => null, 'vcf_info' => 'BEGIN:VCARD']);
+
+        $this->assertSame('', $payload->hash);
+    }
+
+    #[Test]
+    public function it_rejects_a_contact_attachment_with_a_non_string_hash(): void
+    {
         $this->expectException(InvalidResponseException::class);
         $this->expectExceptionMessage('Field "hash" must be a string.');
 
-        ContactAttachmentPayload::fromArray(['user_id' => 1]);
+        ContactAttachmentPayload::fromArray(['hash' => 42]);
     }
 
     #[Test]
@@ -225,5 +299,105 @@ final class AttachmentTest extends TestCase
         $this->assertSame(['name' => 'start'], $command->toArray());
         $this->assertNull(BotCommand::fromArray(['name' => 'start'])->description);
         $this->assertSame('start', $command->name);
+    }
+
+    #[Test]
+    public function it_reads_video_metadata_from_the_top_level_of_the_attachment(): void
+    {
+        $attachment = Attachment::fromArray([
+            'type' => 'video',
+            'width' => 1920,
+            'height' => 1080,
+            'duration' => 42,
+            'thumbnail' => ['url' => 'https://thumb'],
+            'payload' => ['url' => ['mp4_720' => 'https://v720', 'hls' => 'https://v.m3u8'], 'token' => 't'],
+        ]);
+
+        $payload = $attachment->payload;
+        $this->assertInstanceOf(VideoAttachmentPayload::class, $payload);
+        $this->assertSame(1920, $payload->width);
+        $this->assertSame(1080, $payload->height);
+        $this->assertSame(42, $payload->duration);
+        $this->assertSame('https://thumb', $payload->thumbnail?->url);
+        $this->assertSame('https://v720', $payload->url?->mp4_720);
+        $this->assertSame('https://v.m3u8', $payload->url?->hls);
+    }
+
+    #[Test]
+    public function it_prefers_video_metadata_from_the_payload_when_both_forms_are_present(): void
+    {
+        $attachment = Attachment::fromArray([
+            'type' => 'video',
+            'width' => 1920,
+            'height' => 1080,
+            'payload' => ['url' => 'https://v.mp4', 'width' => 640, 'duration' => 7],
+        ]);
+
+        $payload = $attachment->payload;
+        $this->assertInstanceOf(VideoAttachmentPayload::class, $payload);
+        $this->assertSame(640, $payload->width, 'значение внутри payload не затирается верхним уровнем');
+        $this->assertSame(1080, $payload->height, 'отсутствующее в payload поле берётся с верхнего уровня');
+        $this->assertSame(7, $payload->duration);
+        $this->assertSame(640, VideoAttachmentPayload::fromArray($attachment->toArray()['payload'])->width);
+    }
+
+    #[Test]
+    public function it_reads_an_audio_transcription_from_the_top_level_of_the_attachment(): void
+    {
+        $attachment = Attachment::fromArray([
+            'type' => 'audio',
+            'transcription' => 'привет мир',
+            'payload' => ['url' => 'https://a.mp3', 'token' => 't'],
+        ]);
+
+        $payload = $attachment->payload;
+        $this->assertInstanceOf(AudioAttachmentPayload::class, $payload);
+        $this->assertSame('привет мир', $payload->transcription);
+        $this->assertSame('https://a.mp3', $payload->url);
+    }
+
+    #[Test]
+    public function it_reads_file_size_from_the_top_level_of_the_attachment(): void
+    {
+        $attachment = Attachment::fromArray([
+            'type' => 'file',
+            'filename' => 'Смета.pdf',
+            'size' => 2048,
+            'payload' => ['url' => 'https://u', 'token' => 't'],
+        ]);
+
+        $payload = $attachment->payload;
+        $this->assertInstanceOf(FileAttachmentPayload::class, $payload);
+        $this->assertSame(2048, $payload->size);
+        $this->assertSame('Смета.pdf', $payload->filename);
+    }
+
+    #[Test]
+    public function it_reads_all_video_url_renditions(): void
+    {
+        $urls = VideoUrls::fromArray([
+            'mp4_1080' => 'https://1080',
+            'mp4_720' => 'https://720',
+            'mp4_480' => 'https://480',
+            'mp4_360' => 'https://360',
+            'mp4_240' => 'https://240',
+            'mp4_144' => 'https://144',
+            'hls' => 'https://hls',
+        ]);
+
+        $this->assertSame('https://1080', $urls->mp4_1080);
+        $this->assertSame('https://144', $urls->mp4_144);
+        $this->assertSame('https://hls', $urls->hls);
+        $this->assertNull($urls->mp4);
+        $this->assertNull($urls->preview);
+    }
+
+    #[Test]
+    public function it_rejects_a_non_string_transcription(): void
+    {
+        $this->expectException(InvalidResponseException::class);
+        $this->expectExceptionMessage('Field "transcription" must be a string.');
+
+        AudioAttachmentPayload::fromArray(['transcription' => 5]);
     }
 }
