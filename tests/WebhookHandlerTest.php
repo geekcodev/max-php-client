@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace GeekCo\MaxPhpClient\Tests;
 
 use GuzzleHttp\Psr7\HttpFactory;
+use GeekCo\MaxPhpClient\Dto\ContactAttachmentPayload;
+use GeekCo\MaxPhpClient\Enum\AttachmentType;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
 use GeekCo\MaxPhpClient\Webhook\WebhookHandler;
 use PHPUnit\Framework\Attributes\Test;
@@ -141,5 +143,39 @@ final class WebhookHandlerTest extends TestCase
         $this->expectException(InvalidResponseException::class);
 
         $handler->decode($request);
+    }
+
+    #[Test]
+    public function it_decodes_a_message_with_a_contact_attachment_without_a_hash(): void
+    {
+        $handler = new WebhookHandler();
+        $request = (new HttpFactory())->createRequest('POST', 'https://example.com/hook')
+            ->withBody((new HttpFactory())->createStream(json_encode([
+                'update_type' => 'message_created',
+                'timestamp' => 1,
+                'message' => [
+                    'sender' => ['user_id' => 2, 'first_name' => 'A', 'is_bot' => false, 'last_activity_time' => 1],
+                    'recipient' => ['chat_id' => 1, 'user_id' => 2],
+                    'timestamp' => 1,
+                    'body' => [
+                        'mid' => 'm1',
+                        'seq' => 1,
+                        'attachments' => [
+                            ['type' => 'contact', 'payload' => ['vcf_info' => "BEGIN:VCARD\r\nFN:A\r\nEND:VCARD"]],
+                        ],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR)));
+
+        $update = $handler->decode($request);
+
+        $attachments = $update->message?->body?->attachments ?? [];
+        $this->assertCount(1, $attachments);
+
+        $attachment = $attachments[0];
+        $this->assertSame(AttachmentType::Contact, $attachment->type);
+        $this->assertInstanceOf(ContactAttachmentPayload::class, $attachment->payload);
+        $this->assertSame('', $attachment->payload->hash);
+        $this->assertArrayNotHasKey('hash', $attachment->toArray()['payload']);
     }
 }

@@ -454,6 +454,37 @@ OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
 
 ## История изменений
 
+### v1.1.11 — контакт без `hash` больше не роняет разбор webhook-апдейта, метаданные вложений и колбэка
+
+- Фикс `ContactAttachmentPayload::fromArray()`: поле `hash` в спеке MAX nullable, но разбор требовал строку и бросал
+  `InvalidResponseException` при `null` или отсутствии поля — контроллер вебхука отвечал `400 invalid_payload`, и весь
+  апдейт с контактом терялся. Теперь отсутствующий или `null`-`hash` даёт пустую строку: `ContactVerifier::verify()`
+  с пустым хэшем возвращает `false` (fail-closed, проверка подписи не ослаблена), `toArray()` пустой хэш не отдаёт.
+- Неверный тип `hash` (не строка и не `null`) по-прежнему ошибка разбора. Публичные сигнатуры не менялись.
+- Новое `Attachment::$filename` — имя файлового вложения: официальная схема объявляет `filename` на верхнем уровне
+  `FileAttachment`, спека max-openapi держит его в `payload`, поэтому разбираются обе формы (приоритет — верхний
+  уровень), а `toArray()` отдаёт поле на верхнем уровне. Раньше имя терялось при разборе, и потребитель видел только
+  служебный URL скачивания.
+- Разбор привёл к свежей спеке `max-openapi` (коммит `9ef38a6` от 2026-10-20):
+    - `ChatStatus::Suspended` — новое значение `suspended`, которое раньше роняло `Chat::fromArray()` с
+      `InvalidResponseException`. **Внимание:** у потребителей с исчерпывающим `match (ChatStatus)` появится непокрытая
+      ветка — добавьте `default`;
+    - `Subscription::$time` — поле `time`, объявленное обязательным в спеке и официальной схеме;
+    - `Callback::$timestamp` и `Callback::$user`; `Update::$user` дополнительно берётся из `callback.user`, если его нет
+      ни на верхнем уровне, ни в `message.sender`;
+    - метаданные вложений на верхнем уровне подтипа: `FileAttachmentPayload::$filename`/`$size`,
+      `VideoAttachmentPayload::$width`/`$height`/`$thumbnail`, `AudioAttachmentPayload::$transcription`; `duration`
+      видео и аудио читается и с верхнего уровня. `toArray()` пишет их в `payload`;
+    - `VideoUrls` — потоки `mp4_1080`…`mp4_144` и `hls` (легаси `mp4`/`preview` сохранены);
+    - `FailedUserDetails` — форма спеки `{error_code, user_ids[]}` наряду с прод-формой `{user_id, error}`; снят
+      `@deprecated` с `addChatMembers()` и `AddChatMembersResult` (метод в спеке есть, с 9 сентября 2026 ограничен MAX).
+      **Отмена пункта v1.1.6:** `addChatMembers()`, `AddChatMembersResult` и `FailedUserDetails` больше не считаются
+      устаревшими — они есть в спеке и официальной схеме; из списка «Устарело до v2.0.0» выше эти три имени сняты
+      (остальные пункты списка v1.1.6 в силе).
+    - Известное ограничение `FailedUserDetails`: поле `userId` (`int`) в прод-форме равно `0`, если поле не пришло,
+      поэтому `user_id: 0` в ответе неотличимо от отсутствия и не попадает в `toArray()`. В проде идентификаторы
+      начинаются с 1, значение `0` не встречается; строгие nullable-поля — задача v2.0.0.
+
 ### v1.1.10 — `WebAppContactVerifier`: номер телефона из моста мини-приложения
 
 - Новый `Security\WebAppContactVerifier` — серверная проверка подписи контакта, полученного мини-приложением через

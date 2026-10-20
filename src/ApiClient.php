@@ -257,8 +257,8 @@ final class ApiClient
     /**
      * @param list<int> $userIds
      *
-     * @deprecated The method is gone from the specification: adding members is not
-     *             available to bots. It still works in production and will be removed in v2.0.0.
+     * С 9 сентября 2026 метод ограничен со стороны MAX (changelog API), но в спеке
+     * и официальной `schema.yaml` присутствует, пометки об удалении нет.
      */
     public function addChatMembers(int $chatId, array $userIds): AddChatMembersResult
     {

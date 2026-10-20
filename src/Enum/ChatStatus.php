@@ -10,4 +10,5 @@ enum ChatStatus: string
     case Removed = 'removed';
     case Left = 'left';
     case Closed = 'closed';
+    case Suspended = 'suspended';
 }
