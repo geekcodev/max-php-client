@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Tests;
 
-use GeekCo\MaxPhpClient\Enum\UpdateType;
+use GeekCo\MaxPhpClient\Enum\ChatType;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
 use GeekCo\MaxPhpClient\Internal\Json;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -262,8 +262,8 @@ final class JsonTest extends TestCase
     #[Test]
     public function it_reads_an_enum(): void
     {
-        $this->assertNull(Json::enum(UpdateType::class, [], 'e'));
-        $this->assertSame(UpdateType::MessageCreated, Json::enum(UpdateType::class, ['e' => 'message_created'], 'e'));
+        $this->assertNull(Json::enum(ChatType::class, [], 'e'));
+        $this->assertSame(ChatType::Chat, Json::enum(ChatType::class, ['e' => 'chat'], 'e'));
     }
 
     #[Test]
@@ -272,7 +272,7 @@ final class JsonTest extends TestCase
     {
         $this->expectException(InvalidResponseException::class);
 
-        Json::enum(UpdateType::class, $data, 'e');
+        Json::enum(ChatType::class, $data, 'e');
     }
 
     public static function badEnumProvider(): array

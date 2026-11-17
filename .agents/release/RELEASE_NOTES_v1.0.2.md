@@ -8,7 +8,7 @@
 ## Внимание адаптерам
 
 Изменение ломающее: вместо полей `Subscription` (`url`, `update_types`) проверяйте `success` из
-`SuccessResponse`. Адаптеры (`geekcodev/laravel-max-client`) должны обновиться на `^1.0.2`.
+`SuccessResponse`. Интеграционные адаптеры должны обновиться на `^1.0.2`.
 
 ## Качество
 

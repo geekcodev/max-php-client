@@ -27,7 +27,7 @@
 
 ## Внимание адаптерам
 
-Изменения ломающие. Адаптеры (`geekcodev/laravel-max-client`) должны обновиться на `^1.0.3`: проверить чтение
+Изменения ломающие. Интеграционные адаптеры должны обновиться на `^1.0.3`: проверить чтение
 `ChatAdminsResult->members` (тип `ChatMember` вместо `ChatAdmin`), возврат `editBotCommands()`, ответ
 `getPinnedMessage()`, поля `VideoInfo`/`NewMessageLink`.
 

@@ -119,12 +119,11 @@ php -S 0.0.0.0:8080 examples/echo-bot-webhook.php
 | `examples/verify-webapp-contact.php` | Верификация контакта мини-приложения (`requestContact`) и извлечение номера        |
 | `examples/verify-webapp-data.php`    | Верификация стартовых данных мини-приложения (`WebAppDataValidator`)               |
 
-**Как определить пользователя и отправить ему сообщение.** Бот получает `user_id` и `chat_id` диалога из любого апдейта
-(`$update->user?->userId`, `$update->chatId`). Для событий сообщений и колбэков эти поля берутся из
-`message.sender`/`message.recipient`, если их нет на верхнем уровне (см. раздел «Вебхуки»). Сообщение пользователю
-отправляется через `Recipient(userId: ...)`; подробная информация о пользователе — через
-`getChatMembers($chatId, [$userId])`
-(аватар, описание, роль админа) или `getChat($chatId)->dialogWithUser`.
+**Как определить пользователя и отправить ему сообщение.** В v2 `Update` — типизированная иерархия. Для
+`MessageCreatedUpdate` sender и chat_id лежат в сообщении: `$update->message->sender?->userId` и
+`$update->message->recipient->chatId`; для `BotStartedUpdate` — `$update->user->userId` и `$update->chatId`. Сообщение
+пользователю отправляется через `Recipient(userId: ...)`; подробная информация о пользователе — через
+`getChatMembers($chatId, [$userId])` (аватар, описание, роль админа) или `getChat($chatId)->dialogWithUser`.
 
 ## Ретраи
 
@@ -157,19 +156,21 @@ API MAX ограничивает все запросы **30 rps** на `platform
   задерживаются, исключений нет. Настраивается опцией `global_rate_limiter` в `ApiClient::create()`.
 - **Per-chat** (`RateLimiter`): token bucket 2 req/s (бакет 2) для каждого `chat_id`. Используется автоматически при
   вызовах, связанных с чатом; при исчерпании выбрасывается `RateLimitException`. Для `editMessage`/`deleteMessage`/
-  `sendAnswer` per-chat лимит не применяется (нет `chat_id`) — глобальный предохранитель всё равно действует.
+  `answerCallback` per-chat лимит не применяется (нет `chat_id`) — глобальный предохранитель всё равно действует.
 
 ## Загрузка медиа
 
 ```php
-use GeekCo\MaxPhpClient\Dto\AttachmentRequest;
-use GeekCo\MaxPhpClient\Enum\AttachmentType;
+use GeekCo\MaxPhpClient\Dto\AttachmentRequest\PhotoAttachmentRequest;
+use GeekCo\MaxPhpClient\Dto\PhotoAttachmentRequestPayload;
 use GeekCo\MaxPhpClient\Enum\UploadType;
 
 $upload = $client->uploadMedia(UploadType::Image, '/path/to/photo.jpg');
 $message = $client->sendMessage(
     new Recipient(chatId: 123456789),
-    new NewMessageBody(attachments: [new AttachmentRequest(type: AttachmentType::Image, token: $upload->token)]),
+    new NewMessageBody(attachments: [
+        new PhotoAttachmentRequest(new PhotoAttachmentRequestPayload(token: $upload->token)),
+    ]),
 );
 ```
 
@@ -179,17 +180,18 @@ $message = $client->sendMessage(
 
 ```php
 use GeekCo\MaxPhpClient\Dto\NewMessageBody;
+use GeekCo\MaxPhpClient\Dto\Update\MessageCallbackUpdate;
 
-// Обновить сообщение с кнопками и/или показать одноразовое уведомление
-$client->sendAnswer(
-    callbackId: $update->callback?->callbackId ?? '',
+/** @var MessageCallbackUpdate $update */
+$client->answerCallback(
+    callbackId: $update->callback->callbackId,
     message: new NewMessageBody(text: 'Кнопка нажата'),
     notification: 'Обрабатываю…',
 );
 ```
 
 API требует `message` **или** `notification` — при вызове без обоих клиент выбрасывает
-`InvalidArgumentException` до запроса.
+`InvalidArgumentException` до запроса. Пустой `callback_id` отклоняется так же.
 
 ## Комментарии и разметка
 
@@ -210,7 +212,7 @@ $comment = $client->sendComment(
 
 $client->editComment('mid_post', $comment->body->mid, NewCommentBody::create('Исправлено', TextFormat::Markdown));
 $client->deleteComment('mid_post', $comment->body->mid);
-$same = $client->getComment('mid_post', $comment->body->mid);
+$same = $client->getCommentById('mid_post', $comment->body->mid);
 ```
 
 `comment_id` в `editComment` и `deleteComment` — это `mid` комментария, и он передаётся query-параметром, а не в пути.
@@ -224,16 +226,22 @@ foreach ($message->body?->markup ?? [] as $element) {
     $element->type;      // GeekCo\MaxPhpClient\Enum\Markup::Strong, ::Link, ::UserMention, …
     $element->from;      // индекс начала в тексте
     $element->length;    // длина в символах
-    $element->url;       // только для Markup::Link
-    $element->userId;    // только для Markup::UserMention
+
+    if ($element instanceof LinkMarkup) {
+        $element->url;
+    }
+    if ($element instanceof UserMentionMarkup) {
+        $element->userId;
+        $element->userLink;
+    }
 }
 ```
 
-`caption` и `format` в `MessageBody` (ответ) устарели — используйте `markup`; они остаются для совместимости и будут
-удалены в v2.0.0.
+`caption` и `format` в `MessageBody` удалены в v2.0.0 — используйте `markup`.
 
-Апдейты `comment_created` и `comment_edited` приходят в общем `Update`: комментарий разобран в `Update::$comment`
-(тип `CommentMessage`), а `Update::$message` остаётся `null`. Для `comment_removed` доступны `message_id` и `post_id`.
+Апдейты `comment_created` и `comment_edited` приходят как `CommentCreatedUpdate`/`CommentEditedUpdate`; комментарий
+находится в `$update->message` (тип `CommentMessage`). Для `comment_removed` доступны `chatId`, `messageId`, `userId` и
+`postId`.
 
 ## Вебхуки
 
@@ -254,11 +262,11 @@ if ($updates instanceof GeekCo\MaxPhpClient\Dto\Update) {
 }
 ```
 
-Для событий `message_created`/`message_edited`/`message_callback` поля `user` и `chat_id` могут отсутствовать на верхнем
-уровне — они автоматически берутся из `message.sender`/`message.recipient` (и `callback.message`). Объект
-`Update` дополнительно содержит поля `user_locale`, `title`, `payload`, `muted_until`, `message_id`, `user_id`,
-`inviter_id`, `admin_id` — они заполняются для соответствующих типов событий, для остальных равны `null`.
-`user` (объект `User`) может быть `null` (например, для `message_removed`).
+`Update` — типизированная база, поля события находятся в подтипе: `MessageCreatedUpdate::$message`,
+`MessageCallbackUpdate::$callback`/`$message`, `BotStartedUpdate::$user`/`$chatId` и т.д. Для `message_removed`
+отдельного `User` нет — только `userId`; для `message_callback` отправитель берётся из `callback.user`, если его нет в
+сообщении. `user_locale`, `title`, `payload`, `muted_until`, `message_id`, `user_id`, `inviter_id`, `admin_id` — поля
+соответствующих подтипов, а не общей базы.
 
 Создание подписки:
 
@@ -289,17 +297,18 @@ $lastMarker = $runner->run();
 ```
 
 Long polling ограничен по скорости и хранению событий — подходит для разработки и тестирования, но не для production.
+`LongPollingRunner` сам выдерживает минимальный интервал 300 мс между запросами `getUpdates`, как требует API.
 
 ## Ошибки
 
-| Исключение                    | Когда возникает                       |
-|-------------------------------|---------------------------------------|
-| `RateLimitException`          | HTTP 429 или локальный rate limiter   |
-| `AttachmentNotReadyException` | код ошибки `attachment.not.ready`     |
-| `ApiException`                | любой ответ 4xx/5xx с `ErrorResponse` |
-| `NetworkException`            | транспортная ошибка PSR-18            |
-| `InvalidResponseException`    | невалидный JSON / структура ответа    |
-| `InvalidArgumentException`    | некорректные аргументы вызова         |
+| Исключение                    | Когда возникает                     |
+|-------------------------------|-------------------------------------|
+| `RateLimitException`          | HTTP 429 или локальный rate limiter |
+| `AttachmentNotReadyException` | код ошибки `attachment.not.ready`   |
+| `ApiException`                | любой ответ 4xx/5xx с `Error`       |
+| `NetworkException`            | транспортная ошибка PSR-18          |
+| `InvalidResponseException`    | невалидный JSON / структура ответа  |
+| `InvalidArgumentException`    | некорректные аргументы вызова       |
 
 ```php
 use GeekCo\MaxPhpClient\Exception\MaxApiException;
@@ -337,7 +346,7 @@ try {
 
   if ($verifier->verify((string) $contact->vcfInfo, $contact->hash)) {
       // '79250000000' или null — значение приходит как есть, в проде без '+'
-      $phone = $contact->vcfPhone ?? ContactPhoneExtractor::fromVcf((string) $contact->vcfInfo);
+      $phone = ContactPhoneExtractor::fromVcf((string) $contact->vcfInfo);
   }
   ```
 
@@ -410,8 +419,10 @@ public function webhook(ServerRequestInterface $request): ResponseInterface
 
 Практики для production:
 
-- Храните `user_id` (`$update->user->userId`) и `chat_id` (`$update->chatId`) в своей БД; личные сообщения отправляйте
-  через `Recipient(userId: ...)`.
+- Храните `user_id` и `chat_id` из полей конкретного подтипа: для `MessageCreatedUpdate` —
+  `$update->message->sender?->userId`
+  и `$update->message->recipient->chatId`, для `BotStartedUpdate` — `$update->user->userId` и `$update->chatId`. Личные
+  сообщения отправляйте через `Recipient(userId: ...)`.
 - Загрузка медиа выполняется клиентом целиком (`uploadMedia`), включая ожидание готовности вложения — не дублируйте этот
   код в проекте.
 - Для long polling есть готовый `LongPollingRunner`; для production используйте вебхуки.
@@ -453,6 +464,21 @@ MAX_API_TOKEN=<token> docker run --rm --network host \
 OpenAPI-спецификация API: https://github.com/geekcodev/max-openapi
 
 ## История изменений
+
+### v2.0.0 — официальная схема: типизированные события, вложения, кнопки и разметка
+
+- `Update` — abstract-база + 19 подтипов (`MessageCreatedUpdate`, `BotStartedUpdate`, …); `UpdateType` удалён.
+- `Attachment`/`AttachmentRequest` — abstract-базы + по 9 подтипов; `AttachmentType`/`ButtonType` и старые
+  `ImageAttachmentPayload`/`VideoAttachmentPayload`/`AudioAttachmentPayload`/`InlineKeyboardButton*` удалены.
+- `Button` — база + 7 подтипов; `Keyboard` вместо `InlineKeyboardAttachmentPayload`.
+- `MarkupElement` — база + 10 подтипов.
+- `SuccessResponse`→`SimpleQueryResult`, `ErrorResponse`→`Error`, `VideoInfo`→`VideoAttachmentDetails`,
+  `EditChatBody`→`ChatPatch`, `UpdatesResult`→`UpdateList`; `getChats()`/`getUpdatesBatch()` удалены.
+- `Callback::$message`, `MessageBody::$caption`/`$format`, `NewMessageLink::$chat`, `UploadResult`,
+  `ContactAttachmentPayload::$vcfPhone` удалены; `hash` стал `?string`.
+- Клиентские проверки до запроса: текст сообщения и комментария ≤ 4000 символов, непустой `callback_id`, минимальный
+  интервал 300 мс в `LongPollingRunner`.
+- Полный гайд: [`docs/migration-v2.md`](docs/migration-v2.md).
 
 ### v1.1.11 — контакт без `hash` больше не роняет разбор webhook-апдейта, метаданные вложений и колбэка
 

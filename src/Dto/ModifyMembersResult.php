@@ -1,0 +1,52 @@
+<?php
+
+declare(strict_types=1);
+
+namespace GeekCo\MaxPhpClient\Dto;
+
+use GeekCo\MaxPhpClient\Internal\Json;
+
+/**
+ * Ответ `addChatMembers`: `success` и списки пользователей, которых добавить
+ * не удалось. Метод присутствует в спеке и в официальной `schema.yaml`
+ * (с 9 сентября 2026 ограничен со стороны MAX, см. `ApiClient::addChatMembers()`).
+ */
+readonly class ModifyMembersResult
+{
+    /**
+     * @param list<int>|null $failedUserIds
+     * @param list<FailedUserDetails>|null $failedUserDetails
+     */
+    public function __construct(
+        public bool $success,
+        public ?string $message = null,
+        public ?string $code = null,
+        public ?array $failedUserIds = null,
+        public ?array $failedUserDetails = null,
+    ) {
+    }
+
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            success: Json::requiredBool($data, 'success'),
+            message: Json::string($data, 'message'),
+            code: Json::string($data, 'code'),
+            failedUserIds: Json::arrayOfInts($data, 'failed_user_ids'),
+            failedUserDetails: Json::map($data, 'failed_user_details', static fn (mixed $item): FailedUserDetails => FailedUserDetails::fromArray((array) $item)),
+        );
+    }
+
+    public function toArray(): array
+    {
+        return array_filter([
+            'success' => $this->success,
+            'message' => $this->message,
+            'code' => $this->code,
+            'failed_user_ids' => $this->failedUserIds,
+            'failed_user_details' => $this->failedUserDetails === null
+                ? null
+                : array_map(static fn (FailedUserDetails $details): array => $details->toArray(), $this->failedUserDetails),
+        ], static fn (mixed $value): bool => $value !== null);
+    }
+}

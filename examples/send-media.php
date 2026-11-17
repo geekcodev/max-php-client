@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use GeekCo\MaxPhpClient\Dto\AttachmentRequest;
 use GeekCo\MaxPhpClient\Dto\NewMessageBody;
+use GeekCo\MaxPhpClient\Dto\AttachmentRequest\PhotoAttachmentRequest;
+use GeekCo\MaxPhpClient\Dto\PhotoAttachmentRequestPayload;
 use GeekCo\MaxPhpClient\Dto\Recipient;
-use GeekCo\MaxPhpClient\Enum\AttachmentType;
 use GeekCo\MaxPhpClient\Enum\TextFormat;
 use GeekCo\MaxPhpClient\Enum\UploadType;
 
@@ -32,7 +32,7 @@ $client->sendMessage(
     new NewMessageBody(
         text: '*Подпись к фото*',
         attachments: [
-            new AttachmentRequest(type: AttachmentType::Image, token: $upload->token),
+            new PhotoAttachmentRequest(new PhotoAttachmentRequestPayload(token: $upload->token)),
         ],
         format: TextFormat::Markdown,
     ),

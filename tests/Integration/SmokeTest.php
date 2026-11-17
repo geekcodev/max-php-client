@@ -9,6 +9,7 @@ use GeekCo\MaxPhpClient\Dto\BotInfo;
 use GeekCo\MaxPhpClient\Dto\Message;
 use GeekCo\MaxPhpClient\Dto\Subscription;
 use GeekCo\MaxPhpClient\Dto\Update;
+use GeekCo\MaxPhpClient\Dto\Update\MessageCreatedUpdate;
 use GeekCo\MaxPhpClient\Exception\NetworkException;
 use GeekCo\MaxPhpClient\Retry\RetryStrategy;
 use GuzzleHttp\Client;
@@ -69,20 +70,25 @@ final class SmokeTest extends TestCase
     #[Test]
     public function it_polls_updates(): void
     {
-        $updates = $this->probe(fn (): array => $this->client->getUpdates(limit: 10, timeout: 0));
+        $updates = $this->probe(fn (): \GeekCo\MaxPhpClient\Dto\UpdateList => $this->client->getUpdates(limit: 10, timeout: 0));
 
-        $this->assertContainsOnlyInstancesOf(Update::class, $updates);
+        $this->assertContainsOnlyInstancesOf(Update::class, $updates->updates);
     }
 
     #[Test]
     public function it_reads_messages_of_the_last_dialog(): void
     {
-        $updates = $this->probe(fn (): array => $this->client->getUpdates(limit: 1, timeout: 0));
-        if ($updates === []) {
+        $updates = $this->probe(fn (): \GeekCo\MaxPhpClient\Dto\UpdateList => $this->client->getUpdates(limit: 1, timeout: 0));
+        if ($updates->updates === []) {
             $this->markTestSkipped('No updates available to derive a chat_id.');
         }
 
-        $chatId = $updates[0]->chatId;
+        $update = $updates->updates[0];
+        if (!$update instanceof MessageCreatedUpdate) {
+            $this->markTestSkipped('First update does not carry a message.');
+        }
+
+        $chatId = $update->message->recipient->chatId;
         if ($chatId === null) {
             $this->markTestSkipped('Update does not carry a chat_id.');
         }

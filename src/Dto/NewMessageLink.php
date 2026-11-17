@@ -4,35 +4,31 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Dto;
 
+use GeekCo\MaxPhpClient\Enum\MessageLinkType;
 use GeekCo\MaxPhpClient\Internal\Json;
 
 readonly class NewMessageLink
 {
-    /**
-     * @param string|null $chat @deprecated Устаревшее поле: в исходящей форме идентификатор чата задаётся получателем.
-     */
     public function __construct(
-        public string $type,
-        public ?string $mid = null,
-        public ?string $chat = null,
+        public MessageLinkType $type,
+        public string $mid,
     ) {
     }
 
     public static function fromArray(array $data): self
     {
         return new self(
-            type: Json::requiredString($data, 'type'),
-            mid: Json::string($data, 'mid'),
-            chat: Json::string($data, 'chat'),
+            type: Json::enum(MessageLinkType::class, $data, 'type')
+                ?? throw new \GeekCo\MaxPhpClient\Exception\InvalidResponseException('Field "type" must be a string.'),
+            mid: Json::requiredString($data, 'mid'),
         );
     }
 
     public function toArray(): array
     {
-        return array_filter([
-            'type' => $this->type,
+        return [
+            'type' => $this->type->value,
             'mid' => $this->mid,
-            'chat' => $this->chat,
-        ], static fn (mixed $value): bool => $value !== null);
+        ];
     }
 }

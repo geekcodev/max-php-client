@@ -7,17 +7,23 @@ namespace GeekCo\MaxPhpClient\Dto;
 use GeekCo\MaxPhpClient\Internal\Json;
 
 /**
- * Данные загруженного файла — ответ `POST /uploads` и `payload` вложений `video`,
- * `audio`, `file` при отправке сообщения. `url` обязателен, `token` приходит не
- * на каждом шаге загрузки.
+ * Данные загруженного файла для payload вложений `video`, `audio`, `file`.
+ * Ответ `POST /uploads` — `UploadEndpoint` (url + token).
  */
-readonly class UploadedInfo extends UploadResult
+readonly class UploadedInfo
 {
+    public function __construct(
+        public string $token,
+    ) {
+    }
+
     public static function fromArray(array $data): self
     {
-        return new self(
-            url: Json::requiredString($data, 'url'),
-            token: Json::string($data, 'token'),
-        );
+        return new self(token: Json::requiredString($data, 'token'));
+    }
+
+    public function toArray(): array
+    {
+        return ['token' => $this->token];
     }
 }

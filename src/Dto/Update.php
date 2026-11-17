@@ -4,136 +4,98 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Dto;
 
+use GeekCo\MaxPhpClient\Dto\Update\BotAddedToChatUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\BotAdminPermissionsChangedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\BotRemovedFromChatUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\BotStartedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\BotStoppedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\ChatTitleChangedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\CommentCreatedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\CommentEditedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\CommentRemovedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\DialogClearedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\DialogMutedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\DialogRemovedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\DialogUnmutedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\MessageCallbackUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\MessageCreatedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\MessageEditedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\MessageRemovedUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\UserAddedToChatUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\UserRemovedFromChatUpdate;
 use GeekCo\MaxPhpClient\Enum\ChatAdminPermission;
-use GeekCo\MaxPhpClient\Enum\UpdateType;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
 use GeekCo\MaxPhpClient\Internal\Json;
 
 /**
- * Событие MAX. Модель плоская: набор полей зависит от `updateType`, API присылает
- * только поля конкретного события. Типизированные подтипы событий появятся в v2.0.0.
- *
- * Для событий комментариев (`comment_created`, `comment_edited`) поле `message`
- * содержит `CommentMessage` — оно разбирается в `$comment`, а `$message` остаётся
- * `null`.
+ * Событие MAX. База хранит только дискриминатор и время; поля конкретного
+ * события находятся в подтипе.
  */
-readonly class Update
+abstract readonly class Update
 {
-    /**
-     * @param list<ChatAdminPermission>|null $permissions
-     */
     public function __construct(
-        public UpdateType $updateType,
+        public string $updateType,
         public int $timestamp,
-        public ?User $user = null,
-        public ?int $chatId = null,
-        public ?bool $isChannel = null,
-        public ?Message $message = null,
-        public ?Callback $callback = null,
-        public ?string $userLocale = null,
-        public ?string $title = null,
-        public ?string $payload = null,
-        public ?int $mutedUntil = null,
-        public ?string $messageId = null,
-        public ?int $userId = null,
-        public ?int $inviterId = null,
-        public ?int $adminId = null,
-        public ?string $postId = null,
-        public ?CommentMessage $comment = null,
-        public ?int $botId = null,
-        public ?bool $isAdmin = null,
-        public ?array $permissions = null,
     ) {
     }
 
     public static function fromArray(array $data): self
     {
-        $updateType = Json::enum(UpdateType::class, $data, 'update_type')
-            ?? throw new InvalidResponseException('Field "update_type" must be a string.');
+        $updateType = Json::requiredString($data, 'update_type');
 
-        $messageData = $data['message'] ?? null;
-        $callbackData = $data['callback'] ?? null;
-        $isComment = $updateType === UpdateType::CommentCreated || $updateType === UpdateType::CommentEdited;
-
-        $commentData = $isComment && \is_array($messageData) ? $messageData : null;
-        $userData = $data['user'] ?? null;
-        if (!\is_array($userData) && \is_array($messageData)) {
-            $userData = $messageData['sender'] ?? null;
-        }
-        if (!\is_array($userData) && \is_array($callbackData) && \is_array($callbackData['message'] ?? null)) {
-            $userData = $callbackData['message']['sender'] ?? null;
-        }
-        if (!\is_array($userData) && \is_array($callbackData) && \is_array($callbackData['user'] ?? null)) {
-            $userData = $callbackData['user'];
-        }
-
-        $chatId = Json::int($data, 'chat_id');
-        $recipientData = \is_array($messageData) ? ($messageData['recipient'] ?? null) : null;
-        if ($chatId === null && \is_array($recipientData)) {
-            $chatId = Json::int($recipientData, 'chat_id');
-        }
-        if ($chatId === null && \is_array($callbackData) && \is_array($callbackData['message'] ?? null)) {
-            $recipient = $callbackData['message']['recipient'] ?? null;
-            if (\is_array($recipient)) {
-                $chatId = Json::int($recipient, 'chat_id');
-            }
-        }
-
-        return new self(
-            updateType: $updateType,
-            timestamp: Json::requiredInt($data, 'timestamp'),
-            user: \is_array($userData) ? User::fromArray($userData) : null,
-            chatId: $chatId,
-            isChannel: Json::bool($data, 'is_channel'),
-            message: !$isComment && \is_array($messageData) ? Message::fromArray($messageData) : null,
-            callback: \is_array($callbackData) ? Callback::fromArray($callbackData) : null,
-            userLocale: Json::string($data, 'user_locale'),
-            title: Json::string($data, 'title'),
-            payload: Json::string($data, 'payload'),
-            mutedUntil: Json::int($data, 'muted_until'),
-            messageId: Json::string($data, 'message_id'),
-            userId: Json::int($data, 'user_id'),
-            inviterId: Json::int($data, 'inviter_id'),
-            adminId: Json::int($data, 'admin_id'),
-            postId: Json::string($data, 'post_id'),
-            comment: \is_array($commentData) ? CommentMessage::fromArray($commentData) : null,
-            botId: Json::int($data, 'bot_id'),
-            isAdmin: Json::bool($data, 'is_admin'),
-            permissions: self::permissions($data),
-        );
+        return match ($updateType) {
+            'message_created' => MessageCreatedUpdate::fromArray($data),
+            'message_edited' => MessageEditedUpdate::fromArray($data),
+            'message_removed' => MessageRemovedUpdate::fromArray($data),
+            'message_callback' => MessageCallbackUpdate::fromArray($data),
+            'comment_created' => CommentCreatedUpdate::fromArray($data),
+            'comment_edited' => CommentEditedUpdate::fromArray($data),
+            'comment_removed' => CommentRemovedUpdate::fromArray($data),
+            'bot_added' => BotAddedToChatUpdate::fromArray($data),
+            'bot_admin_permissions_changed' => BotAdminPermissionsChangedUpdate::fromArray($data),
+            'bot_removed' => BotRemovedFromChatUpdate::fromArray($data),
+            'user_added' => UserAddedToChatUpdate::fromArray($data),
+            'user_removed' => UserRemovedFromChatUpdate::fromArray($data),
+            'bot_started' => BotStartedUpdate::fromArray($data),
+            'bot_stopped' => BotStoppedUpdate::fromArray($data),
+            'chat_title_changed' => ChatTitleChangedUpdate::fromArray($data),
+            'dialog_cleared' => DialogClearedUpdate::fromArray($data),
+            'dialog_muted' => DialogMutedUpdate::fromArray($data),
+            'dialog_unmuted' => DialogUnmutedUpdate::fromArray($data),
+            'dialog_removed' => DialogRemovedUpdate::fromArray($data),
+            default => throw new InvalidResponseException(
+                sprintf('Unsupported update_type "%s".', $updateType),
+            ),
+        };
     }
 
     public function toArray(): array
     {
-        return array_filter([
-            'update_type' => $this->updateType->value,
+        return [
+            'update_type' => $this->updateType,
             'timestamp' => $this->timestamp,
-            'chat_id' => $this->chatId,
-            'user' => $this->user?->toArray(),
-            'is_channel' => $this->isChannel,
-            'message' => $this->message?->toArray() ?? $this->comment?->toArray(),
-            'callback' => $this->callback?->toArray(),
-            'user_locale' => $this->userLocale,
-            'title' => $this->title,
-            'payload' => $this->payload,
-            'muted_until' => $this->mutedUntil,
-            'message_id' => $this->messageId,
-            'user_id' => $this->userId,
-            'inviter_id' => $this->inviterId,
-            'admin_id' => $this->adminId,
-            'post_id' => $this->postId,
-            'bot_id' => $this->botId,
-            'is_admin' => $this->isAdmin,
-            'permissions' => $this->permissions === null
-                ? null
-                : array_map(static fn (ChatAdminPermission $permission): string => $permission->value, $this->permissions),
-        ], static fn (mixed $value): bool => $value !== null);
+        ];
+    }
+
+    protected static function requiredUser(array $data, string $key = 'user'): User
+    {
+        return User::fromArray(Json::requiredArray($data, $key));
+    }
+
+    protected static function requiredMessage(array $data, string $key = 'message'): Message
+    {
+        return Message::fromArray(Json::requiredArray($data, $key));
+    }
+
+    protected static function requiredComment(array $data, string $key = 'message'): CommentMessage
+    {
+        return CommentMessage::fromArray(Json::requiredArray($data, $key));
     }
 
     /**
      * @return list<ChatAdminPermission>|null
      */
-    private static function permissions(array $data): ?array
+    protected static function permissions(array $data): ?array
     {
         return Json::map(
             $data,

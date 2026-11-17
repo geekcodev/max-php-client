@@ -27,8 +27,7 @@ User, вложения, long polling). Исправлены критически
 ## Long polling
 
 - Новый `ApiClient::getUpdatesBatch(): UpdatesResult` (`updates` + `marker`) — marker из ответа теперь сохраняется.
-  `getUpdates()` сохранён без изменений сигнатуры (обёртка над batch) для обратной совместимости с
-  `laravel-max-client`.
+  `getUpdates()` сохранён без изменений сигнатуры (обёртка над batch) для обратной совместимости с интеграционным адаптером.
 - `LongPollingRunner` переведён на `getUpdatesBatch()` и использует возвращаемый marker вместо
   `max(update.timestamp)` — более надёжная точка продолжения опроса.
 

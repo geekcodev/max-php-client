@@ -23,9 +23,9 @@ final class ContactVerifier
      * в реальные CRLF. Хэш приходит в hex или base64 (стандартной и URL-safe,
      * с паддингом и без). Сравнение константное.
      */
-    public function verify(string $vcfInfo, string $hash): bool
+    public function verify(string $vcfInfo, ?string $hash): bool
     {
-        if ($vcfInfo === '' || $hash === '') {
+        if ($vcfInfo === '' || $hash === null || $hash === '') {
             return false;
         }
 

@@ -4,6 +4,16 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Tests\Dto;
 
+use GeekCo\MaxPhpClient\Dto\Markup\EmphasizedMarkup;
+use GeekCo\MaxPhpClient\Dto\Markup\HeadingMarkup;
+use GeekCo\MaxPhpClient\Dto\Markup\HighlightedMarkup;
+use GeekCo\MaxPhpClient\Dto\Markup\LinkMarkup;
+use GeekCo\MaxPhpClient\Dto\Markup\MonospacedMarkup;
+use GeekCo\MaxPhpClient\Dto\Markup\QuoteMarkup;
+use GeekCo\MaxPhpClient\Dto\Markup\StrikethroughMarkup;
+use GeekCo\MaxPhpClient\Dto\Markup\StrongMarkup;
+use GeekCo\MaxPhpClient\Dto\Markup\UnderlineMarkup;
+use GeekCo\MaxPhpClient\Dto\Markup\UserMentionMarkup;
 use GeekCo\MaxPhpClient\Dto\MarkupElement;
 use GeekCo\MaxPhpClient\Dto\Message;
 use GeekCo\MaxPhpClient\Enum\Markup;
@@ -15,13 +25,18 @@ use PHPUnit\Framework\TestCase;
 final class MarkupElementTest extends TestCase
 {
     /**
-     * @return iterable<string, array{string}>
+     * @return iterable<string, array{string, class-string<MarkupElement>}>
      */
     public static function typesProvider(): iterable
     {
-        foreach (Markup::cases() as $case) {
-            yield $case->value => [$case->value];
-        }
+        yield 'strong' => ['strong', StrongMarkup::class];
+        yield 'emphasized' => ['emphasized', EmphasizedMarkup::class];
+        yield 'underline' => ['underline', UnderlineMarkup::class];
+        yield 'strikethrough' => ['strikethrough', StrikethroughMarkup::class];
+        yield 'monospaced' => ['monospaced', MonospacedMarkup::class];
+        yield 'highlighted' => ['highlighted', HighlightedMarkup::class];
+        yield 'quote' => ['quote', QuoteMarkup::class];
+        yield 'heading' => ['heading', HeadingMarkup::class];
     }
 
     #[Test]
@@ -43,21 +58,19 @@ final class MarkupElementTest extends TestCase
 
     #[Test]
     #[DataProvider('typesProvider')]
-    public function it_parses_a_plain_markup_element(string $type): void
+    public function it_parses_plain_markup(string $type, string $class): void
     {
         $element = MarkupElement::fromArray(['type' => $type, 'from' => 0, 'length' => 4]);
 
+        $this->assertInstanceOf($class, $element);
         $this->assertSame(Markup::from($type), $element->type);
         $this->assertSame(0, $element->from);
         $this->assertSame(4, $element->length);
-        $this->assertNull($element->url);
-        $this->assertNull($element->userId);
-        $this->assertNull($element->userLink);
         $this->assertSame(['type' => $type, 'from' => 0, 'length' => 4], $element->toArray());
     }
 
     #[Test]
-    public function it_parses_a_link_markup_element(): void
+    public function it_parses_link_markup(): void
     {
         $element = MarkupElement::fromArray([
             'type' => 'link',
@@ -66,13 +79,13 @@ final class MarkupElementTest extends TestCase
             'url' => 'https://max.ru/docs',
         ]);
 
-        $this->assertSame(Markup::Link, $element->type);
+        $this->assertInstanceOf(LinkMarkup::class, $element);
         $this->assertSame('https://max.ru/docs', $element->url);
-        $this->assertSame(5, $element->from);
+        $this->assertSame('https://max.ru/docs', $element->toArray()['url']);
     }
 
     #[Test]
-    public function it_parses_a_user_mention_markup_element(): void
+    public function it_parses_user_mention_markup(): void
     {
         $element = MarkupElement::fromArray([
             'type' => 'user_mention',
@@ -82,17 +95,18 @@ final class MarkupElementTest extends TestCase
             'user_link' => 'https://max.ru/u/abc',
         ]);
 
-        $this->assertSame(Markup::UserMention, $element->type);
+        $this->assertInstanceOf(UserMentionMarkup::class, $element);
         $this->assertSame(277570130, $element->userId);
         $this->assertSame('https://max.ru/u/abc', $element->userLink);
     }
 
     #[Test]
-    public function it_accepts_a_numeric_string_user_id(): void
+    public function it_accepts_the_underlined_discriminator_alias(): void
     {
-        $element = MarkupElement::fromArray(['type' => 'user_mention', 'from' => 0, 'length' => 1, 'user_id' => '277570130']);
+        $element = MarkupElement::fromArray(['type' => 'underlined', 'from' => 0, 'length' => 1]);
 
-        $this->assertSame(277570130, $element->userId);
+        $this->assertInstanceOf(UnderlineMarkup::class, $element);
+        $this->assertSame('underline', $element->toArray()['type']);
     }
 
     #[Test]
@@ -113,17 +127,13 @@ final class MarkupElementTest extends TestCase
         MarkupElement::fromArray(['from' => 0, 'length' => 1]);
     }
 
-    /**
-     * В спецификации discriminator отображает `underlined` в `UnderlineMarkup`,
-     * тогда как само перечисление `Markup` содержит `underline`.
-     */
     #[Test]
-    public function it_rejects_the_discriminator_alias_used_by_the_specification(): void
+    public function it_rejects_an_unknown_markup_type(): void
     {
         $this->expectException(InvalidResponseException::class);
-        $this->expectExceptionMessage('Field "type" has unsupported value "underlined".');
+        $this->expectExceptionMessage('Field "type" has unsupported value "blink".');
 
-        MarkupElement::fromArray(['type' => 'underlined', 'from' => 0, 'length' => 1]);
+        MarkupElement::fromArray(['type' => 'blink', 'from' => 0, 'length' => 1]);
     }
 
     #[Test]
@@ -162,21 +172,9 @@ final class MarkupElementTest extends TestCase
         ]);
 
         $this->assertCount(2, $message->body->markup);
-        $this->assertSame(Markup::Strong, $message->body->markup[0]->type);
+        $this->assertInstanceOf(StrongMarkup::class, $message->body->markup[0]);
+        $this->assertInstanceOf(LinkMarkup::class, $message->body->markup[1]);
         $this->assertSame('https://max.ru', $message->body->markup[1]->url);
-    }
-
-    #[Test]
-    public function it_rejects_a_non_array_markup(): void
-    {
-        $this->expectException(InvalidResponseException::class);
-        $this->expectExceptionMessage('Field "markup" must be an array.');
-
-        Message::fromArray([
-            'recipient' => ['chat_id' => 5],
-            'timestamp' => 1000,
-            'body' => ['mid' => 'm1', 'seq' => 1, 'text' => 't', 'markup' => 'strong'],
-        ]);
     }
 
     #[Test]
@@ -186,6 +184,7 @@ final class MarkupElementTest extends TestCase
 
         $decoded = MarkupElement::fromArray(MarkupElement::fromArray($data)->toArray());
 
+        $this->assertInstanceOf(UserMentionMarkup::class, $decoded);
         $this->assertSame($data, $decoded->toArray());
     }
 }

@@ -6,7 +6,8 @@ use GeekCo\MaxPhpClient\ApiClient;
 use GeekCo\MaxPhpClient\Dto\NewMessageBody;
 use GeekCo\MaxPhpClient\Dto\Recipient;
 use GeekCo\MaxPhpClient\Dto\Update;
-use GeekCo\MaxPhpClient\Enum\UpdateType;
+use GeekCo\MaxPhpClient\Dto\Update\MessageCallbackUpdate;
+use GeekCo\MaxPhpClient\Dto\Update\MessageCreatedUpdate;
 
 /**
  * Пример обработчика апдейтов: эхо-ответ на текстовые сообщения
@@ -14,29 +15,26 @@ use GeekCo\MaxPhpClient\Enum\UpdateType;
  */
 function max_echo_handle_update(ApiClient $client, Update $update): void
 {
-    if ($update->updateType === UpdateType::MessageCreated) {
-        $text = $update->message?->body?->text;
-        if ($text === null || $text === '') {
+    if ($update instanceof MessageCreatedUpdate) {
+        $text = $update->message->body->text;
+        $senderId = $update->message->sender?->userId;
+
+        if ($text === null || $text === '' || $senderId === null) {
             return;
         }
 
         $client->sendMessage(
-            new Recipient(userId: $update->user->userId),
+            new Recipient(userId: $senderId),
             new NewMessageBody(text: 'Вы написали: ' . $text),
         );
 
         return;
     }
 
-    if ($update->updateType === UpdateType::MessageCallback) {
-        $callback = $update->callback;
-        if ($callback === null) {
-            return;
-        }
-
-        $client->sendAnswer(
-            callbackId: $callback->callbackId,
-            message: new NewMessageBody(text: 'Кнопка нажата: ' . ($callback->payload ?? '')),
+    if ($update instanceof MessageCallbackUpdate) {
+        $client->answerCallback(
+            callbackId: $update->callback->callbackId,
+            message: new NewMessageBody(text: 'Кнопка нажата: ' . ($update->callback->payload ?? '')),
         );
     }
 }

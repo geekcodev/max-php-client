@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace GeekCo\MaxPhpClient\Tests;
 
 use GuzzleHttp\Psr7\HttpFactory;
+use GeekCo\MaxPhpClient\Dto\Attachment\ContactAttachment;
 use GeekCo\MaxPhpClient\Dto\ContactAttachmentPayload;
-use GeekCo\MaxPhpClient\Enum\AttachmentType;
+use GeekCo\MaxPhpClient\Dto\Update\MessageCreatedUpdate;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
 use GeekCo\MaxPhpClient\Webhook\WebhookHandler;
 use PHPUnit\Framework\Attributes\Test;
@@ -29,7 +30,7 @@ final class WebhookHandlerTest extends TestCase
 
         $update = $handler->decode($request);
 
-        $this->assertSame('bot_started', $update->updateType->value);
+        $this->assertSame('bot_started', $update->updateType);
     }
 
     #[Test]
@@ -87,10 +88,10 @@ final class WebhookHandlerTest extends TestCase
 
         $update = $handler->decode($request);
 
-        $this->assertInstanceOf(\GeekCo\MaxPhpClient\Dto\Update::class, $update);
-        $this->assertSame(277570130, $update->message?->link?->sender);
-        $this->assertSame('mid.1', $update->message?->link?->mid);
-        $this->assertSame('ok', $update->message?->body?->text);
+        $this->assertInstanceOf(MessageCreatedUpdate::class, $update);
+        $this->assertSame(277570130, $update->message->link?->senderId);
+        $this->assertSame('mid.1', $update->message->link?->mid);
+        $this->assertSame('ok', $update->message->body->text);
     }
 
     #[Test]
@@ -169,13 +170,14 @@ final class WebhookHandlerTest extends TestCase
 
         $update = $handler->decode($request);
 
-        $attachments = $update->message?->body?->attachments ?? [];
+        $this->assertInstanceOf(MessageCreatedUpdate::class, $update);
+        $attachments = $update->message->body->attachments ?? [];
         $this->assertCount(1, $attachments);
 
         $attachment = $attachments[0];
-        $this->assertSame(AttachmentType::Contact, $attachment->type);
+        $this->assertInstanceOf(ContactAttachment::class, $attachment);
         $this->assertInstanceOf(ContactAttachmentPayload::class, $attachment->payload);
-        $this->assertSame('', $attachment->payload->hash);
+        $this->assertNull($attachment->payload->hash);
         $this->assertArrayNotHasKey('hash', $attachment->toArray()['payload']);
     }
 }
