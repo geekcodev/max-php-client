@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
+use GeekCo\MaxPhpClient\Dto\Attachment\ContactAttachment;
 use GeekCo\MaxPhpClient\Dto\ContactAttachmentPayload;
 use GeekCo\MaxPhpClient\Dto\Update;
-use GeekCo\MaxPhpClient\Enum\AttachmentType;
+use GeekCo\MaxPhpClient\Dto\Update\MessageCreatedUpdate;
 use GeekCo\MaxPhpClient\Security\ContactPhoneExtractor;
 use GeekCo\MaxPhpClient\Security\ContactVerifier;
 
@@ -14,10 +15,10 @@ require __DIR__ . '/bootstrap.php';
  * Верификация контакта, присланного по кнопке `request_contact`, и получение номера.
  *
  * Схема работы бота: отправить сообщение с кнопкой
- * `new InlineKeyboardButton(type: ButtonType::RequestContact, text: 'Поделиться контактом')`
+ * `new RequestContactButton('Поделиться контактом')` внутри `InlineKeyboardAttachmentRequest`
  * (см. examples/inline-keyboard.php). Когда пользователь нажмёт кнопку, придёт апдейт
- * `message_created`, у которого в `message.body.attachments` есть вложение
- * `type = contact` с `payload` — это и есть контакт.
+ * `message_created`, у которого в `message.body.attachments` есть `ContactAttachment`
+ * с `payload` — это и есть контакт.
  *
  * Порядок действий:
  *   1. найти вложение contact и взять его payload (ContactAttachmentPayload);
@@ -66,9 +67,14 @@ $update = Update::fromArray([
     ],
 ]);
 
+if (!$update instanceof MessageCreatedUpdate) {
+    fwrite(STDERR, "Expected message_created update\n");
+    exit(1);
+}
+
 $contact = null;
-foreach ($update->message?->body?->attachments ?? [] as $attachment) {
-    if ($attachment->type === AttachmentType::Contact && $attachment->payload instanceof ContactAttachmentPayload) {
+foreach ($update->message->body?->attachments ?? [] as $attachment) {
+    if ($attachment instanceof ContactAttachment) {
         $contact = $attachment->payload;
         break;
     }
@@ -89,10 +95,8 @@ if (!$verifier->verify((string) $contact->vcfInfo, $contact->hash)) {
 fwrite(STDOUT, "Contact verified\n");
 
 // Во входящем payload поля `vcf_phone` нет — оно объявлено только в исходящем
-// ContactAttachmentRequestPayload, который кладёт сам бот. Поэтому рабочий порядок:
-// сначала поле DTO, разбор vcf_info как запасной путь. Такой код переживёт появление
-// `vcf_phone` во входящем payload без изменений.
-$phone = $contact->vcfPhone ?? ContactPhoneExtractor::fromVcf((string) $contact->vcfInfo);
+// ContactAttachmentRequestPayload. Телефон берётся из подписанного `vcf_info`.
+$phone = ContactPhoneExtractor::fromVcf((string) $contact->vcfInfo);
 
 if ($phone === null) {
     fwrite(STDERR, "Contact has no phone\n");

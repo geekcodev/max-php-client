@@ -9,9 +9,12 @@ use GeekCo\MaxPhpClient\Dto\CommentMessage;
 use GeekCo\MaxPhpClient\Dto\CommentMessageBody;
 use GeekCo\MaxPhpClient\Dto\CommentMessageList;
 use GeekCo\MaxPhpClient\Dto\NewCommentBody;
+use GeekCo\MaxPhpClient\Dto\Markup\LinkMarkup;
 use GeekCo\MaxPhpClient\Dto\NewMessageLink;
 use GeekCo\MaxPhpClient\Dto\SendCommentResult;
+use GeekCo\MaxPhpClient\Enum\ChatType;
 use GeekCo\MaxPhpClient\Enum\Markup;
+use GeekCo\MaxPhpClient\Enum\MessageLinkType;
 use GeekCo\MaxPhpClient\Enum\TextFormat;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
 use PHPUnit\Framework\Attributes\Test;
@@ -42,7 +45,7 @@ final class CommentTest extends TestCase
         $this->assertSame('Nice post', $comment->body->text);
         $this->assertSame(7, $comment->sender?->userId);
         $this->assertSame(5, $comment->recipient->chatId);
-        $this->assertSame('channel', $comment->recipient->chatType);
+        $this->assertSame(ChatType::Channel, $comment->recipient->chatType);
         $this->assertSame('mid_post', $comment->recipient->postId);
         $this->assertNull($comment->link);
         $this->assertNull($comment->stat);
@@ -72,6 +75,7 @@ final class CommentTest extends TestCase
         $this->assertSame(Markup::Strong, $markup[0]->type);
         $this->assertSame(0, $markup[0]->from);
         $this->assertSame(4, $markup[0]->length);
+        $this->assertInstanceOf(LinkMarkup::class, $markup[1]);
         $this->assertSame(Markup::Link, $markup[1]->type);
         $this->assertSame('https://max.ru', $markup[1]->url);
     }
@@ -90,7 +94,7 @@ final class CommentTest extends TestCase
         $link = CommentMessage::fromArray($data)->link;
 
         $this->assertInstanceOf(CommentLinkedMessage::class, $link);
-        $this->assertSame('reply', $link->type);
+        $this->assertSame(MessageLinkType::Reply, $link->type);
         $this->assertSame('c0', $link->message->mid);
         $this->assertSame('Original', $link->message->text);
         $this->assertSame(8, $link->sender?->userId);
@@ -198,7 +202,7 @@ final class CommentTest extends TestCase
         $body = NewCommentBody::create(
             '**bold** text',
             TextFormat::Markdown,
-            new NewMessageLink('reply', 'mid_post'),
+            new NewMessageLink(MessageLinkType::Reply, 'mid_post'),
         );
 
         $this->assertSame([

@@ -18,7 +18,7 @@
   `ContactAttachmentRequestPayload` (`:2258-2265`), который бот сам кладёт в своё вложение, а не получает от MAX.
 - Следствие: `Dto/ContactAttachmentPayload::$vcfPhone` на входе всегда `null`. Поле в DTO есть, но заполняться ему
   нечем, и потребитель, доверившийся ему, получит `null` вместо номера.
-- Разбор vCard в интеграционном проекте (i2tech) — `app/app/Services/RequestFlowService.php:1102-1113`
+- Разбор vCard в интеграционном проекте — `app/app/Services/RequestFlowService.php:1102-1113`
   (`telFromVcf()`), регулярное выражение с `(?:^|\r?\n)TEL(?:;[^:\r\n]*)*[:]`. Это единственный рабочий путь получения
   номера сегодня.
 - `src/Security/ContactVerifier.php` закрывает только подпись: HMAC-SHA256 токена над `vcf_info`, восстановление
@@ -131,8 +131,9 @@
   ограничение параметра с двоеточием внутри кавычек.
 - Обновлены `docs/api-reference.md` (разделы 7 и 9), `README.md` (возможности, безопасность, таблица примеров, история),
   `examples/verify-contact.php`, `AGENTS.md` (слой Security, gotcha), `.agents/release/RELEASE_NOTES_v1.1.7.md`.
-- По результатам сверки с интеграционным проектом (i2tech, `RequestFlowService::telFromVcf()`) в пример, README и раздел
-  7 `docs/api-reference.md` перенесён рекомендуемый порядок `$contact->vcfPhone ?? fromVcf($contact->vcfInfo)`:
+- По результатам сверки с интеграционным проектом  в пример,
+  README и раздел 7 `docs/api-reference.md` перенесён рекомендуемый порядок
+  `$contact->vcfPhone ?? fromVcf($contact->vcfInfo)`:
   сначала поле DTO, разбор как запасной путь — код потребителя переживёт появление `vcf_phone` во входящем payload. Их
   реализация проверена на 14 входах против нового класса: совпадение на типичном профиле, расхождения в пользу нового
   класса на свёрнутых строках, строчном `tel:`, префиксе группы и CR-only переводах; случаев, где старая реализация

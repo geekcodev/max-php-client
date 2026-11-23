@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace GeekCo\MaxPhpClient\Dto;
 
 use GeekCo\MaxPhpClient\Enum\TextFormat;
+use GeekCo\MaxPhpClient\Exception\InvalidArgumentException;
 use GeekCo\MaxPhpClient\Internal\Json;
 
 /**
@@ -19,6 +20,7 @@ readonly class NewCommentBody
         public ?TextFormat $format = null,
         public ?NewMessageLink $link = null,
     ) {
+        self::validateText($text);
     }
 
     public static function create(
@@ -49,5 +51,12 @@ readonly class NewCommentBody
             'format' => $this->format?->value,
             'link' => $this->link?->toArray(),
         ], static fn (mixed $value): bool => $value !== null);
+    }
+
+    private static function validateText(?string $text): void
+    {
+        if ($text !== null && mb_strlen($text) > 4000) {
+            throw new InvalidArgumentException('Comment text must not exceed 4000 characters.');
+        }
     }
 }

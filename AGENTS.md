@@ -12,22 +12,19 @@
   Bot API** (мессенджер MAX, https://max.ru). Цель — production-grade ядро, которое переиспользуется в интеграционных
   модулях: фреймворк-мосты (Laravel, Symfony) делаются **отдельными пакетами** поверх этого клиента и от ядра не
   зависят.
-- **Статус.** Последний выпущенный релиз — **v1.1.10** (Packagist `geekcodev/max-php-client`, тег `v1.1.10` на
-  merge-коммите `dev → main`; факт публикации подтверждается страницей пакета или письмом Packagist). В версии: новый
-  `Security\WebAppContactVerifier` и `Dto\WebAppContact` — номер телефона, затребованный мини-приложением через
-  `window.WebApp.requestContact()` (подпись `HMAC-SHA256("authDate=<v>\nphone=<v>\nuserId=<v>", bot_token)`) — и
-  внутренний `Internal\HashMatcher`, на который переведён `ContactVerifier`. **Опубликованные версии неизменяемы**:
-  выпущенные номера (v1.1.7, v1.1.8, v1.1.9, v1.1.10) переиспользовать нельзя, довыпуск только новым тегом (раздел 9).
-  Известный долг v1.1.8 и v1.1.9: этот раздел не обновлялся до установки тега и попадал в опубликованную версию со
-  старым статусом — правило шага 7 «статус равен последнему тегу» выдерживается в релизном коммите до merge, ссылки на
-  Packagist дополняются сразу после публикации (`.agents/` и `AGENTS.md` помечены `export-ignore`, поэтому такие правки
-  не попадают в дистрибутив). Актуальную версию всегда
-  уточняй по `git ls-remote --tags origin | tail -1` (теги на сервере — источник истины, локальные остаются от
-  удалённых) и по `git log --oneline -10`, а не по этому файлу: номер релиза здесь протухает медленнее, чем меняются
-  теги. Перед финалом релиза приводи его в соответствие с последним тегом (см. раздел 9). В `.agents/plans/` лежат планы
-  серверной проверки телефона из MAX Bridge (v1.1.10) и фикса `Chat::$participants` (v1.1.9): оба реализованы и готовы,
-  у плана v1.1.10 после публикации закрывается шаг 8 (тег и `RELEASE_NOTES`), у плана v1.1.9 остаются шаги в
-  `laravel-max-client` и `filament-max-users`.
+- **Статус.** Последний выпущенный релиз — **v2.0.0** (Packagist `geekcodev/max-php-client`, тег `v2.0.0` на
+  merge-коммите `new → main`; GitHub Release и публикация Packagist — сразу после установки тега). В версии:
+  типизированный `Update` и 19 подтипов событий, отдельные иерархии вложений/кнопок/разметки, `UpdateList`,
+  `SimpleQueryResult`, `UploadEndpoint`, `ChatMembersList`, `ModifyMembersResult`; методы переименованы
+  (`sendChatAction`, `answerCallback`, `getCommentById`, `getVideoAttachmentDetails`); `getChats()` и
+  `getUpdatesBatch()` удалены; `vcfPhone` убран из входящего контакта; клиентские проверки текста (4000), пустого
+  `callback_id` и интервала long polling (300 мс). Миграция — `docs/migration-v2.md`, release notes —
+  `.agents/release/RELEASE_NOTES_v2.0.0.md`. Приёмка на dev-стенде пройдена 2026-11-23: вебхуки, вложения, согласие,
+  lifecycle-события. **Опубликованные версии неизменяемы**: номера v1.1.7–v1.1.11 и v2.0.0 переиспользовать нельзя,
+  довыпуск — только новым тегом (раздел 9). Актуальную версию всегда уточняй по
+  `git ls-remote --tags --refs origin | awk '{print $2}' | sed 's#refs/tags/##' | sort -V | tail -1` (теги на сервере —
+  источник истины; `tail -1` без `sort -V` врёт на `v1.1.10`/`v1.1.11`) и по `git log --oneline -10`, а не по этому
+  файлу. В `.agents/plans/` планы этапов 8 (серверная приёмка v2.0.0) и v1.1.9/v1.1.10 закрыты по этому репозиторию.
 - **Лицензия.** MIT (c) 2026 Evgeny Semenov.
 - **Язык.** Рабочий язык общения с пользователем, все md-файлы, описания и журнал — **русский**.
 
@@ -74,6 +71,10 @@
 10. **Язык — русский.** Все md-файлы, комментарии в коде, описания, планы и журнал пиши по-русски, информативно, без
     смешения языков и без декоративных артефактов (значков, условных обозначений, символов непонятного происхождения).
     Допустимы только русский и английский. Идентификаторы в коде, имена API-полей и термины спеки остаются как есть.
+11. **Перед задачей про поведение MAX API загружай навык `max-messenger`** (раздел 5.1): он фиксирует жёсткие лимиты (30
+    rps, 2 ответа/сек на чат, интервал long polling 300 мс, 4000 символов, лимиты клавиатуры), формулы проверки подписей
+    и подводные камни TLS. Схема и прод-поведение (`docs/api-reference.md`) важнее навыка: при расхождении действует
+    схема, а расхождение фиксируется в плане или справочнике.
 
 ## 4. Структура репозитория
 
@@ -82,6 +83,7 @@ src/                          клиент, DTO, enums, исключения, с
 tests/                        PHPUnit: unit-тесты + Integration/SmokeTest (группа integration)
 examples/                     рабочие примеры ботов + run.sh (docker-запуск без локального PHP)
 docs/api-reference.md         справочник API MAX: спека, эндпоинты, enums, DTO, лимиты, вебхуки
+docs/migration-v2.md         руководство по переходу на v2.0.0
 scripts/check-coverage.php    порог покрытия строк (по умолчанию 95%)
 .github/workflows/ci.yml      CI: quality + integration
 Dockerfile                    PHP 8.4, опциональный Xdebug (ARG INSTALL_XDEBUG=false)
@@ -100,7 +102,7 @@ phpstan.neon                  level max
 ## 5. Рабочие каталоги `.agents` и `docs`
 
 `.agents/` — **рабочий** каталог, отслеживаемый в git: планы, журнал сессий и описания релизов. Он входит в состав
-репозитория (история сессий доступна при `git clone`, как в `filament-max-users` и `laravel-max-client`), но помечен
+репозитория (история сессий доступна при `git clone` в интеграционных пакетах), но помечен
 `/.agents export-ignore` в `.gitattributes` и не попадает в дистрибутив Packagist. Секреты, токены и payload в него не
 кладутся; для внешних потребителей истина — `README.md`, `docs/api-reference.md` и описания в GitHub Release.
 
@@ -110,6 +112,7 @@ phpstan.neon                  level max
 | `journals/sessions/`    | Файлы сессий `YYYY-MM-DD-тема.md`: frontmatter с тегами, тело ≤2 КБ                                                |
 | `plans/`                | Планы многошаговых задач, статус: `в работе`, `завершён` или `ждёт данных` (с указанием чего именно); не удаляются |
 | `release/`              | `RELEASE_NOTES_vX.Y.Z.md` — описание каждой версии, статус: в работе или выпущено                                  |
+| `skills/`               | копия навыка `max-messenger` (Apache-2.0; источник, коммит и порядок обновления — § 5.1)                           |
 | `docs/` (в репозитории) | Публичная документация; карта документов — здесь, в разделе 4                                                      |
 
 ### Правила ведения
@@ -124,6 +127,23 @@ phpstan.neon                  level max
   дублируются в README (раздел «История изменений») и в GitHub Release.
 - Если правка изменила поведение публичного API или контракт с интеграторами — обнови `README.md` и
   `docs/api-reference.md` в той же сессии.
+
+### 5.1. Навык `max-messenger`
+
+Официальный набор навыков MAX (`https://github.com/max-messenger/max-agents-skill`, Apache-2.0) — второй независимый
+источник жёстких ограничений API: лимиты запросов, long polling, размеры текста, лимиты клавиатуры, формулы подписей
+вебхука/`initData`/контактов, правила TLS для `platform-api2.max.ru`.
+
+- Закреплённая копия: `.agents/skills/max-messenger/` — `SKILL.md`, `references/`, `SOURCE.md` с коммитом источника.
+  Каталог `.agents` помечен `export-ignore`, в дистрибутив не попадает.
+- Копия для OpenCode: `~/.config/opencode/skills/max-messenger/` — из неё навык регистрируется с ID `max-messenger` и
+  виден модели. Загрузить: инструмент `skill` с `id: max-messenger` или упоминание `@max-messenger` в запросе.
+- Обновление навыка: заменить оба каталога целиком из источника и обновить коммит в `SOURCE.md`; вручную файлы навыка не
+  правим.
+- Приоритет: `docs/api-reference.md` и подтверждённое прод-поведение важнее навыка. Расхождение (например, «retired»
+  `POST /chats/{chatId}/members`) фиксируется в справочнике или плане, а не переносится в код молча.
+- Найденные навыком ограничения, которые ещё не проверяются клиентом, перечислены в чек-листе «Отложено (не забыть)»
+  файла `.agents/plans/2026-11-17-max-messenger-skill-audit.md`.
 
 ## 6. Архитектура и ключевые контракты
 
@@ -140,8 +160,8 @@ phpstan.neon                  level max
 | Upload      | `Uploader`                                                                                 | Multipart-загрузка медиа (требует `ext-fileinfo`)                                                                                                     |
 | Security    | `ContactVerifier`, `ContactPhoneExtractor`, `WebAppDataValidator`, `WebAppContactVerifier` | Верификация контакта по кнопке `request_contact` и номер телефона из `vcf_info`; стартовых данных мини-приложения; контакта из моста `requestContact` |
 | Internal    | `Internal\Json`, `Internal\HashMatcher`                                                    | Работа с JSON (кодирование/декодирование с исключениями); сравнение HMAC-хэшей в hex/base64                                                           |
-| Dto         | `src/Dto/*` (54 класса)                                                                    | Типизированные модели запросов и ответов                                                                                                              |
-| Enum        | `src/Enum/*` (10)                                                                          | Строго типизированные значения                                                                                                                        |
+| Dto         | `src/Dto/*` (112 классов)                                                                  | Типизированные модели запросов и ответов                                                                                                              |
+| Enum        | `src/Enum/*` (8)                                                                           | Строго типизированные значения                                                                                                                        |
 | Exception   | `src/Exception/*` (7)                                                                      | Иерархия типизированных ошибок                                                                                                                        |
 
 ### Контракты компонентов
@@ -150,10 +170,10 @@ phpstan.neon                  level max
   `$uriFactory` (PSR-17), `$accessToken` (обязательный), `$baseUri`, `$retryStrategy`, `$rateLimiter` (per-chat 2
   req/s), `$globalRateLimiter` (по умолчанию 30 req/s). Внутри собирает `HttpClient` (transport + retry + глобальный
   rate limit) и `Uploader`. Используется во всех примерах (`examples/bootstrap.php`).
-- **Комментарии** — `getComments()`, `sendComment()`, `editComment()`, `deleteComment()`, `getComment()`: работают с
+- **Комментарии** — `getComments()`, `sendComment()`, `editComment()`, `deleteComment()`, `getCommentById()`: работают с
   сообщениями в каналах, где у бота есть право `read_all_messages`; `comment_id` = `mid` комментария, передаётся
-  query-параметром; апдейты `comment_created`/`comment_edited` разбираются в `Update::$comment` (`CommentMessage`), а
-  `Update::$message` остаётся `null`.
+  query-параметром; апдейты `comment_created`/`comment_edited` — это `CommentCreatedUpdate::$message` /
+  `CommentEditedUpdate::$message` (`CommentMessage`).
 - **`WebhookHandler::decode(): Update|list<Update>`** — критичный нюанс: ответ может быть **одним объектом**
   **или** списком. Итерация без проверки ломает foreach:
   ```php
@@ -162,9 +182,10 @@ phpstan.neon                  level max
   foreach ($updates as $update) { ... }
   ```
   Ответы эндпоинта: неверный секрет → HTTP 401, невалидный body → HTTP 400, успех → HTTP 200 (обязателен в течение 30
-  сек, иначе API повторит доставку). Нюанс полей: `Update::$user` — nullable; для `message_created`/`message_edited`/
-  `message_callback` `user` и `chat_id` берутся из `message.sender`/`message.recipient` (и `callback.message`), если их
-  нет на верхнем уровне.
+  сек, иначе API повторит доставку). `Update` — типизированная иерархия: отправитель и чат лежат в полях подтипа
+  (например, `MessageCreatedUpdate::$message->sender` и `::$message->recipient`;
+  `MessageCallbackUpdate::$callback->user`
+  и `::$message`).
 - **`RetryStrategy`** — по умолчанию ретраит: 429, 5xx, сетевые сбои, `attachment.not.ready`; только идемпотентные
   методы; число попыток и задержки настраиваются.
 - **`RateLimiter`** — дефолт 2 запроса/сек (лимит API на диалог/чат/канал).
@@ -197,17 +218,17 @@ phpstan.neon                  level max
 ### Соглашения DTO
 
 - Все DTO — `final readonly`, типизированные nullable-поля, валидация типов в `fromArray()`.
-- `toArray()` — для запросов. Конструкторы `create()` есть только у `NewMessageBody`, `NewCommentBody`, `EditChatBody`,
+- `toArray()` — для запросов. Конструкторы `create()` есть только у `NewMessageBody`, `NewCommentBody`, `ChatPatch`,
   `AttachmentRequest`, `PinMessageBody`.
-- Вложения (`Attachment`) — discriminated по `token`: 7 типов payload (+ image). Координаты локации в спеке лежат на
-  верхнем уровне вложения, но вложенная форма тоже разбирается.
+- `Attachment`/`AttachmentRequest` — abstract-базы с `type` и по 9 подтипов; payload типизирован. Координаты
+  `LocationAttachment` — на верхнем уровне, `payload` нет.
 - JSON-кодирование/декодирование — только через `Internal\Json`, никогда напрямую `json_encode`/`json_decode`.
 - ID: `message_id` / `callback_id` / `messageId` — **строки**; `chat_id` / `user_id` — **int64**.
 - Отклонения API от спек-типов: внутри объекта `link` идентификаторы приходят **строками** (`sender: "277570130"`,
   `chat: "117541872"`), хотя `sender` объявлен как `integer/int64` (а в новой спеке — объект `User`). Такие int64 читать
   через `Json::tolerantInt()` (int или числовая строка → int, нет значения → `null`, мусор → исключение), а не через
-  `Json::requiredInt()`. `LinkedMessage::$sender` — `?int` (в спеке поле необязательное), `LinkedMessage::$senderUser` —
-  `?User` для новой формы спеки. Полный список зафиксированных расхождений — `docs/api-reference.md`, раздел 9.
+  `Json::requiredInt()`. `LinkedMessage::$sender` — `?User`, `$senderId` — `?int` для числовой прод-формы;
+  `mid`/`chat` сохранены как legacy. Полный список зафиксированных расхождений — `docs/api-reference.md`, раздел 9.
 
 ### Иерархия исключений
 
@@ -333,9 +354,10 @@ Gate не считается пройденным, пока не сверены 
    (release notes последней версии, его план и его файл сессии): архивные записи прошлых релизов не трогаются, иначе
    проверка всегда срабатывает на истории и её перестанут читать.
 3. **Статус релиза.** Версия в разделе 1 этого файла равна последнему тегу **на origin**
-   (`git ls-remote --tags origin | tail -1`), а не локальному `git tag`: после отката релизного тега локальная копия
-   остаётся и даёт ложный «зелёный» результат проверки. В `.agents/release/` последний release notes помечен выпущенным
-   либо явно откаченным, планы — «завершён», «ждёт данных» с указанием чего именно, или «в работе».
+   (`git ls-remote --tags --refs origin | awk '{print $2}' | sed 's#refs/tags/##' | sort -V | tail -1`), а не локальному
+   `git tag`: после отката релизного тега локальная копия остаётся и даёт ложный «зелёный» результат проверки. В
+   `.agents/release/` последний release notes помечен выпущенным либо явно откаченным, планы — «завершён», «ждёт данных»
+   с указанием чего именно, или «в работе».
 4. **Утверждения о публикации проверяемы.** «Packagist не публиковался», «тега нет», «релиз выпущен» — только из письма
    Packagist или со страницы пакета, а не из `git tag`: удаление тега не отменяет публикацию (см. v1.1.7). Здесь я
    написал в пяти файлах, что v1.1.7 не публиковался, и был неправ — версия вышла.
@@ -357,12 +379,12 @@ Gate не считается пройденным, пока не сверены 
    `git ls-tree -r --name-only <tag>`: в нём не должно быть `.env`, `vendor/` и прочих рабочих каталогов.
 
 Проверка быстрая и обязательная: `git status --short` (чисто), `git show --stat <tag>` (состав),
-`git ls-remote --tags origin | tail -1` (версия — источник истины; если разошлось с локальным `git tag`, удалённый на
-сервере тег остался в копии и должен быть удалён локально), `grep -rn "не прогонялось\|не запускалось"
-.agents/release/RELEASE_NOTES_v<последний>.md` (лживые отрицания — только в файлах текущего релиза),
-`grep -c "тестов" .agents/release/RELEASE_NOTES_vX.Y.Z.md` (цифры). После отката релиза проверяй ещё
-`grep -rn "выпущено\|выпущен" .agents/` — записи о выходе должны быть переведены в откат. Результат — строка в отчёте и
-в файле сессии.
+`git ls-remote --tags --refs origin | awk '{print $2}' | sed 's#refs/tags/##' | sort -V | tail -1` (версия — источник
+истины; если разошлось с локальным `git tag`, удалённый на сервере тег остался в копии и должен быть удалён локально),
+`grep -rn "не прогонялось\|не запускалось" .agents/release/RELEASE_NOTES_v<последний>.md` (лживые отрицания — только в
+файлах текущего релиза), `grep -c "тестов" .agents/release/RELEASE_NOTES_vX.Y.Z.md` (цифры). После отката релиза
+проверяй ещё `grep -rn "выпущено\|выпущен" .agents/` — записи о выходе должны быть переведены в откат. Результат —
+строка в отчёте и в файле сессии.
 
 ## 9. CI/CD и релизы
 
@@ -386,14 +408,15 @@ Gate не считается пройденным, пока не сверены 
 
 ## 10. Частые ошибки (gotchas)
 
-1. `WebhookHandler::decode()` возвращает `Update|list<Update>` — **не** итерировать без `instanceof`-проверки;
-   `Update::$user` **nullable** (для сообщений/колбэков `user` и `chat_id` берутся из `message.sender`/`recipient`).
+1. `WebhookHandler::decode()` возвращает `Update|list<Update>` — **не** итерировать без `instanceof`-проверки.
+   `Update` — база; поля события находятся в подтипе (`MessageCreatedUpdate::$message`, `BotStartedUpdate::$user` и
+   т.д.).
 2. Токен — без `Bearer`; только заголовок, не query.
 3. `attachment.not.ready` — загруженное вложение ещё не готово: ждать и ретраить.
 4. `join_time` — миллисекунды (как остальные timestamp).
 5. Из Docker-сети TLS до API блокируется — только `--network host`.
 6. Имя переменной — только `MAX_API_TOKEN` (старое `MAX_ACCESS_TOKEN` не используется).
-7. `getChats` deprecated — chat_id хранить через подписку на `bot_added`/`bot_started`.
+7. `getChats` удалён в v2 — chat_id хранить через подписку на `bot_added`/`bot_started`.
 8. `mime_content_type()` требует `ext-fileinfo` (объявлено в `require` composer.json).
 9. Секреты/токены/vcf_info/callback payload — никогда в логи, коммиты и журнал сессий.
 10. Версионирование — только git-тегами; `version` в composer.json не указывать.

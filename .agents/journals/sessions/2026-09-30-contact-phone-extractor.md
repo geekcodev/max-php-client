@@ -27,8 +27,9 @@ date: 2026-09-30
   `ContactVerifier`); `examples/verify-contact.php` выводит номер после успешной проверки;
   `.agents/release/RELEASE_NOTES_v1.1.7.md`.
 - Рекомендуемый порядок в потребителе — `$contact->vcfPhone ?? fromVcf($contact->vcfInfo)` — перенесён в пример, README,
-  раздел 7 `docs/api-reference.md`, gotcha 15 и release notes. Взят из интеграционного проекта i2tech, где так уже
-  сделано в `RequestFlowService::applyContact()`: так код переживёт появление `vcf_phone` во входящем payload.
+  раздел 7 `docs/api-reference.md`, gotcha 15 и release notes. Взят из интеграционного проекта,
+  где так уже сделано в `RequestFlowService::applyContact()`: так код переживёт появление `vcf_phone` во входящем
+  payload.
 - Сверка с интеграционным проектом: их `RequestFlowService::telFromVcf()` проверена на 14 входах против нового класса.
   Совпадение на типичном профиле и на литеральных `\r\n`; новый класс полнее на свёрнутых строках (у них обрезанный
   номер), на строчном `tel:` (у них null), на префиксе группы и на CR-only переводах. Случаев, где их реализация лучше,

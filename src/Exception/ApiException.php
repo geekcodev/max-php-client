@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Exception;
 
-use GeekCo\MaxPhpClient\Dto\ErrorResponse;
+use GeekCo\MaxPhpClient\Dto\Error;
 
 class ApiException extends MaxApiException
 {
     public function __construct(
         public readonly int $statusCode,
-        public readonly ?ErrorResponse $error = null,
+        public readonly ?Error $error = null,
         ?\Throwable $previous = null,
     ) {
         parent::__construct(
@@ -20,7 +20,7 @@ class ApiException extends MaxApiException
         );
     }
 
-    public function getError(): ?ErrorResponse
+    public function getError(): ?Error
     {
         return $this->error;
     }

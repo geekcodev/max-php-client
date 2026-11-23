@@ -8,6 +8,7 @@ use GuzzleHttp\Psr7\HttpFactory;
 use GeekCo\MaxPhpClient\ApiClient;
 use GeekCo\MaxPhpClient\Dto\NewMessageBody;
 use GeekCo\MaxPhpClient\Dto\Recipient;
+use GeekCo\MaxPhpClient\Dto\Update\MessageCreatedUpdate;
 use GeekCo\MaxPhpClient\Exception\ApiException;
 use GeekCo\MaxPhpClient\Exception\AttachmentNotReadyException;
 use GeekCo\MaxPhpClient\Exception\RateLimitException;
@@ -164,10 +165,11 @@ final class ApiClientTest extends TestCase
 
         $updates = $this->client()->getUpdates();
 
-        $this->assertCount(1, $updates);
-        $this->assertSame('message_created', $updates[0]->updateType->value);
-        $this->assertSame(7, $updates[0]->user->userId);
-        $this->assertSame('hi', $updates[0]->message?->body?->text);
+        $this->assertCount(1, $updates->updates);
+        $this->assertInstanceOf(MessageCreatedUpdate::class, $updates->updates[0]);
+        $update = $updates->updates[0];
+        $this->assertSame('message_created', $update->updateType);
+        $this->assertSame('hi', $update->message->body->text);
     }
 
     private function json(array $payload, int $status = 200, array $headers = []): \Psr\Http\Message\ResponseInterface

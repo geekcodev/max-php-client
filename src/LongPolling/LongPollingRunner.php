@@ -10,6 +10,8 @@ use GeekCo\MaxPhpClient\Exception\MaxApiException;
 
 final class LongPollingRunner
 {
+    private const int MIN_POLL_INTERVAL_MICROSECONDS = 300_000;
+
     /**
      * @param callable(Update): bool $handler Returns false to stop the loop.
      */
@@ -29,7 +31,7 @@ final class LongPollingRunner
     {
         while (true) {
             try {
-                $batch = $this->api->getUpdatesBatch($this->limit, $this->timeout, $marker);
+                $batch = $this->api->getUpdates($this->limit, $this->timeout, $marker);
             } catch (MaxApiException $e) {
                 if ($this->breakOnFailure) {
                     throw $e;
@@ -45,6 +47,7 @@ final class LongPollingRunner
             }
 
             $marker = $batch->marker ?? $marker;
+            usleep(self::MIN_POLL_INTERVAL_MICROSECONDS);
         }
     }
 }

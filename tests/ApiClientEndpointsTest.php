@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Tests;
 
+use GeekCo\MaxPhpClient\Enum\MessageLinkType;
 use GuzzleHttp\Psr7\HttpFactory;
 use GeekCo\MaxPhpClient\ApiClient;
 use GeekCo\MaxPhpClient\Dto\BotCommand;
-use GeekCo\MaxPhpClient\Dto\EditChatBody;
+use GeekCo\MaxPhpClient\Dto\ChatPatch;
 use GeekCo\MaxPhpClient\Dto\NewMessageBody;
 use GeekCo\MaxPhpClient\Dto\NewMessageLink;
 use GeekCo\MaxPhpClient\Dto\PinMessageBody;
@@ -105,24 +106,6 @@ final class ApiClientEndpointsTest extends TestCase
     }
 
     #[Test]
-    public function it_lists_chats(): void
-    {
-        $this->http->next(fn ($request) => $this->json(['chats' => [
-            ['chat_id' => 5, 'type' => 'chat', 'status' => 'active', 'last_event_time' => 10, 'participants_count' => 3, 'is_public' => false],
-        ], 'marker' => 42]));
-
-        $result = $this->client()->getChats(marker: 10, count: 20);
-
-        $request = $this->http->requests[0];
-        $this->assertSame('GET', $request->getMethod());
-        $this->assertSame('/chats', $request->getUri()->getPath());
-        $this->assertSame('marker=10&count=20', $request->getUri()->getQuery());
-        $this->assertCount(1, $result->chats);
-        $this->assertSame(5, $result->chats[0]->chatId);
-        $this->assertSame(42, $result->marker);
-    }
-
-    #[Test]
     public function it_gets_a_chat(): void
     {
         $this->http->next(fn ($request) => $this->json([
@@ -154,7 +137,7 @@ final class ApiClientEndpointsTest extends TestCase
             'is_public' => false,
         ]));
 
-        $this->client()->editChat(5, EditChatBody::create(title: 'New title'));
+        $this->client()->editChat(5, ChatPatch::create(title: 'New title'));
 
         $request = $this->http->requests[0];
         $this->assertSame('PATCH', $request->getMethod());
@@ -167,7 +150,7 @@ final class ApiClientEndpointsTest extends TestCase
     {
         $this->http->next(fn ($request) => $this->json(['success' => true]));
 
-        $result = $this->client()->sendBotAction(5, SenderAction::TypingOn);
+        $result = $this->client()->sendChatAction(5, SenderAction::TypingOn);
 
         $request = $this->http->requests[0];
         $this->assertSame('POST', $request->getMethod());
@@ -461,18 +444,18 @@ final class ApiClientEndpointsTest extends TestCase
     {
         $this->http->next(fn ($request) => $this->json([
             'token' => 'v1',
-            'urls' => ['mp4' => 'https://vu.okcdn.ru/clip.mp4', 'preview' => 'https://vu.okcdn.ru/clip.jpg'],
+            'urls' => ['mp4_720' => 'https://vu.okcdn.ru/clip.mp4', 'mp4_480' => 'https://vu.okcdn.ru/clip.jpg'],
             'thumbnail' => ['url' => 'https://vu.okcdn.ru/t.jpg', 'width' => 320, 'height' => 180],
             'width' => 1920,
             'height' => 1080,
             'duration' => 12,
         ]));
 
-        $info = $this->client()->getVideoInfo('v1');
+        $info = $this->client()->getVideoAttachmentDetails('v1');
 
         $this->assertSame('/videos/v1', $this->http->requests[0]->getUri()->getPath());
         $this->assertSame('v1', $info->token);
-        $this->assertSame('https://vu.okcdn.ru/clip.mp4', $info->urls?->mp4);
+        $this->assertSame('https://vu.okcdn.ru/clip.mp4', $info->urls?->mp4_720);
         $this->assertSame('https://vu.okcdn.ru/t.jpg', $info->thumbnail?->url);
         $this->assertSame(1920, $info->width);
         $this->assertSame(1080, $info->height);
@@ -516,7 +499,7 @@ final class ApiClientEndpointsTest extends TestCase
     {
         $this->http->next(fn ($request) => $this->json(['success' => true]));
 
-        $result = $this->client()->sendAnswer('c1', NewMessageBody::create(text: 'Answer'));
+        $result = $this->client()->answerCallback('c1', NewMessageBody::create(text: 'Answer'));
 
         $request = $this->http->requests[0];
         $this->assertSame('POST', $request->getMethod());
@@ -527,11 +510,19 @@ final class ApiClientEndpointsTest extends TestCase
     }
 
     #[Test]
+    public function it_rejects_an_empty_callback_id(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->client()->answerCallback('', new NewMessageBody(text: 'Answer'));
+    }
+
+    #[Test]
     public function it_requires_message_or_notification_to_answer(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        $this->client()->sendAnswer('c1');
+        $this->client()->answerCallback('c1');
     }
 
     #[Test]
@@ -539,7 +530,7 @@ final class ApiClientEndpointsTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        $this->client()->sendAnswer('c1', new NewMessageBody());
+        $this->client()->answerCallback('c1', new NewMessageBody());
     }
 
     #[Test]
@@ -547,7 +538,7 @@ final class ApiClientEndpointsTest extends TestCase
     {
         $this->http->next(fn ($request) => $this->json(['success' => true]));
 
-        $result = $this->client()->sendAnswer('c1', notification: 'Готово');
+        $result = $this->client()->answerCallback('c1', notification: 'Готово');
 
         $request = $this->http->requests[0];
         $this->assertSame('POST', $request->getMethod());
@@ -563,7 +554,7 @@ final class ApiClientEndpointsTest extends TestCase
     {
         $this->http->next(fn ($request) => $this->json(['success' => true]));
 
-        $result = $this->client()->sendAnswer('c1', NewMessageBody::create(text: 'Answer'), 'Готово');
+        $result = $this->client()->answerCallback('c1', NewMessageBody::create(text: 'Answer'), 'Готово');
 
         $request = $this->http->requests[0];
         $this->assertSame('{"message":{"text":"Answer"},"notification":"Готово"}', (string) $request->getBody());
@@ -631,33 +622,21 @@ final class ApiClientEndpointsTest extends TestCase
         $this->http->next(fn ($request) => $this->json(['updates' => [[
             'update_type' => 'message_created',
             'timestamp' => 1,
-            'chat_id' => 5,
-            'user' => self::USER,
+            'message' => [
+                'recipient' => ['chat_id' => 5],
+                'timestamp' => 1,
+                'body' => ['mid' => 'm1', 'seq' => 1, 'text' => 'hi'],
+            ],
         ]], 'marker' => 9]));
 
-        $result = $this->client()->getUpdatesBatch(limit: 5, timeout: 30, marker: 1, types: ['message_created', 'message_edited']);
+        $result = $this->client()->getUpdates(limit: 5, timeout: 30, marker: 1, types: ['message_created', 'message_edited']);
 
         $request = $this->http->requests[0];
         $this->assertSame('/updates', $request->getUri()->getPath());
         $this->assertSame('limit=5&timeout=30&marker=1&types=message_created%2Cmessage_edited', $request->getUri()->getQuery());
-        $this->assertSame('message_created', $result->updates[0]->updateType->value);
-        $this->assertSame(5, $result->updates[0]->chatId);
+        $this->assertSame('message_created', $result->updates[0]->updateType);
+        $this->assertSame('hi', $result->updates[0]->message->body->text);
         $this->assertSame(9, $result->marker);
-    }
-
-    #[Test]
-    public function it_gets_updates_as_a_bare_list(): void
-    {
-        $this->http->next(fn ($request) => $this->json(['updates' => [[
-            'update_type' => 'message_created',
-            'timestamp' => 1,
-            'chat_id' => 5,
-            'user' => self::USER,
-        ]]]));
-
-        $result = $this->client()->getUpdates(limit: 5);
-
-        $this->assertSame('message_created', $result[0]->updateType->value);
     }
 
     #[Test]
@@ -679,7 +658,7 @@ final class ApiClientEndpointsTest extends TestCase
         $this->http->next(fn ($request) => $this->json(['updates' => 'nope']));
 
         $this->expectException(\GeekCo\MaxPhpClient\Exception\InvalidResponseException::class);
-        $this->expectExceptionMessage('Expected a JSON list in response field "updates".');
+        $this->expectExceptionMessage('Field "updates" must be an array.');
 
         $this->client()->getUpdates(limit: 5);
     }
@@ -738,12 +717,12 @@ final class ApiClientEndpointsTest extends TestCase
 
         $message = $this->client()->sendMessage(
             new Recipient(chatId: 5),
-            NewMessageBody::create(text: 'hi', link: new NewMessageLink(type: 'reply', mid: 'mid.1')),
+            NewMessageBody::create(text: 'hi', link: new NewMessageLink(type: MessageLinkType::Reply, mid: 'mid.1')),
         );
 
         $this->assertSame('m2', $message->body?->mid);
         $this->assertSame('mid.1', $message->link?->mid);
-        $this->assertSame(277570130, $message->link?->sender);
+        $this->assertSame(277570130, $message->link?->senderId);
     }
 
     #[Test]

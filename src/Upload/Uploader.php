@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Upload;
 
-use GeekCo\MaxPhpClient\Dto\UploadedInfo;
+use GeekCo\MaxPhpClient\Dto\UploadEndpoint;
 use GeekCo\MaxPhpClient\Enum\UploadType;
 use GeekCo\MaxPhpClient\Exception\InvalidArgumentException;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
@@ -23,7 +23,7 @@ final class Uploader
     ) {
     }
 
-    public function upload(UploadType $type, string $filePath): UploadedInfo
+    public function upload(UploadType $type, string $filePath): UploadEndpoint
     {
         $path = realpath($filePath);
         if ($path === false || !is_file($path) || !is_readable($path)) {
@@ -66,7 +66,7 @@ final class Uploader
             }
         }
 
-        return new UploadedInfo(
+        return new UploadEndpoint(
             url: $url,
             token: $tokenFromStep2 ?? $tokenFromStep1,
         );

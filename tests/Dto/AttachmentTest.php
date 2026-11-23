@@ -5,19 +5,45 @@ declare(strict_types=1);
 namespace GeekCo\MaxPhpClient\Tests\Dto;
 
 use GeekCo\MaxPhpClient\Dto\Attachment;
+use GeekCo\MaxPhpClient\Dto\Attachment\AudioAttachment;
+use GeekCo\MaxPhpClient\Dto\Attachment\ContactAttachment;
+use GeekCo\MaxPhpClient\Dto\Attachment\FileAttachment;
+use GeekCo\MaxPhpClient\Dto\Attachment\InlineKeyboardAttachment;
+use GeekCo\MaxPhpClient\Dto\Attachment\LocationAttachment;
+use GeekCo\MaxPhpClient\Dto\Attachment\PhotoAttachment;
+use GeekCo\MaxPhpClient\Dto\Attachment\ShareAttachment;
+use GeekCo\MaxPhpClient\Dto\Attachment\StickerAttachment;
+use GeekCo\MaxPhpClient\Dto\Attachment\VideoAttachment;
 use GeekCo\MaxPhpClient\Dto\AttachmentRequest;
-use GeekCo\MaxPhpClient\Dto\AudioAttachmentPayload;
-use GeekCo\MaxPhpClient\Dto\BotCommand;
+use GeekCo\MaxPhpClient\Dto\AttachmentRequest\AudioAttachmentRequest;
+use GeekCo\MaxPhpClient\Dto\AttachmentRequest\ContactAttachmentRequest;
+use GeekCo\MaxPhpClient\Dto\AttachmentRequest\FileAttachmentRequest;
+use GeekCo\MaxPhpClient\Dto\AttachmentRequest\InlineKeyboardAttachmentRequest;
+use GeekCo\MaxPhpClient\Dto\AttachmentRequest\LocationAttachmentRequest;
+use GeekCo\MaxPhpClient\Dto\AttachmentRequest\PhotoAttachmentRequest;
+use GeekCo\MaxPhpClient\Dto\AttachmentRequest\ShareAttachmentRequest;
+use GeekCo\MaxPhpClient\Dto\AttachmentRequest\StickerAttachmentRequest;
+use GeekCo\MaxPhpClient\Dto\AttachmentRequest\VideoAttachmentRequest;
+use GeekCo\MaxPhpClient\Dto\Button;
+use GeekCo\MaxPhpClient\Dto\Button\CallbackButton;
+use GeekCo\MaxPhpClient\Dto\Button\ClipboardButton;
+use GeekCo\MaxPhpClient\Dto\Button\LinkButton;
+use GeekCo\MaxPhpClient\Dto\Button\MessageButton;
+use GeekCo\MaxPhpClient\Dto\Button\OpenAppButton;
+use GeekCo\MaxPhpClient\Dto\Button\RequestContactButton;
+use GeekCo\MaxPhpClient\Dto\Button\RequestGeoLocationButton;
 use GeekCo\MaxPhpClient\Dto\ContactAttachmentPayload;
-use GeekCo\MaxPhpClient\Dto\FileAttachmentPayload;
-use GeekCo\MaxPhpClient\Dto\InlineKeyboardButton;
-use GeekCo\MaxPhpClient\Dto\InlineKeyboardButtonRow;
-use GeekCo\MaxPhpClient\Dto\LinkedMessage;
-use GeekCo\MaxPhpClient\Dto\Recipient;
-use GeekCo\MaxPhpClient\Dto\VideoAttachmentPayload;
-use GeekCo\MaxPhpClient\Dto\VideoUrls;
-use GeekCo\MaxPhpClient\Enum\AttachmentType;
-use GeekCo\MaxPhpClient\Enum\ButtonType;
+use GeekCo\MaxPhpClient\Dto\ContactAttachmentRequestPayload;
+use GeekCo\MaxPhpClient\Dto\InlineKeyboardAttachmentRequestPayload;
+use GeekCo\MaxPhpClient\Dto\Keyboard;
+use GeekCo\MaxPhpClient\Dto\MediaAttachmentPayload;
+use GeekCo\MaxPhpClient\Dto\PhotoAttachmentPayload;
+use GeekCo\MaxPhpClient\Dto\PhotoAttachmentRequestPayload;
+use GeekCo\MaxPhpClient\Dto\ShareAttachmentPayload;
+use GeekCo\MaxPhpClient\Dto\StickerAttachmentPayload;
+use GeekCo\MaxPhpClient\Dto\StickerAttachmentRequestPayload;
+use GeekCo\MaxPhpClient\Dto\UploadedInfo;
+use GeekCo\MaxPhpClient\Dto\VideoThumbnail;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -25,379 +51,259 @@ use PHPUnit\Framework\TestCase;
 final class AttachmentTest extends TestCase
 {
     #[Test]
-    public function it_reads_a_location_attachment_with_top_level_coordinates(): void
-    {
-        $attachment = Attachment::fromArray([
-            'type' => 'location',
-            'latitude' => 55.751244,
-            'longitude' => 37.618423,
-        ]);
-
-        $this->assertSame(AttachmentType::Location, $attachment->type);
-        $this->assertSame(55.751244, $attachment->latitude);
-        $this->assertSame(37.618423, $attachment->longitude);
-        $this->assertSame(
-            ['type' => 'location', 'latitude' => 55.751244, 'longitude' => 37.618423],
-            $attachment->toArray(),
-        );
-    }
-
-    #[Test]
-    public function it_reads_a_location_attachment_from_a_nested_payload(): void
-    {
-        $attachment = Attachment::fromArray([
-            'type' => 'location',
-            'payload' => ['latitude' => 1.5, 'longitude' => 2.5],
-        ]);
-
-        $this->assertSame(1.5, $attachment->latitude);
-        $this->assertSame(2.5, $attachment->longitude);
-    }
-
-    #[Test]
-    public function it_prefers_top_level_coordinates_over_a_nested_payload(): void
-    {
-        $attachment = Attachment::fromArray([
-            'type' => 'location',
-            'latitude' => 10.5,
-            'longitude' => 20.5,
-            'payload' => ['latitude' => 1.5, 'longitude' => 2.5],
-        ]);
-
-        $this->assertSame(10.5, $attachment->latitude);
-        $this->assertSame(20.5, $attachment->longitude);
-    }
-
-    #[Test]
-    public function it_rejects_non_numeric_coordinates(): void
-    {
-        $this->expectException(InvalidResponseException::class);
-        $this->expectExceptionMessage('Field "latitude" must be a number.');
-
-        Attachment::fromArray(['type' => 'location', 'latitude' => 'north']);
-    }
-
-    #[Test]
-    public function it_leaves_coordinates_empty_for_other_attachment_types(): void
-    {
-        $attachment = Attachment::fromArray(['type' => 'image', 'payload' => ['url' => 'https://u', 'token' => 't']]);
-
-        $this->assertNull($attachment->latitude);
-        $this->assertNull($attachment->longitude);
-        $this->assertNull($attachment->filename);
-        $this->assertSame(['type' => 'image', 'payload' => ['url' => 'https://u', 'token' => 't']], $attachment->toArray());
-    }
-
-    #[Test]
-    public function it_reads_a_filename_from_the_top_level_of_a_file_attachment(): void
-    {
-        $attachment = Attachment::fromArray([
-            'type' => 'file',
-            'filename' => 'Смета.pdf',
-            'payload' => ['url' => 'https://u', 'token' => 't'],
-        ]);
-
-        $this->assertSame('Смета.pdf', $attachment->filename);
-        $this->assertSame(
-            ['type' => 'file', 'payload' => ['url' => 'https://u', 'token' => 't', 'filename' => 'Смета.pdf'], 'filename' => 'Смета.pdf'],
-            $attachment->toArray(),
-        );
-    }
-
-    #[Test]
-    public function it_reads_a_filename_from_a_nested_payload(): void
-    {
-        $attachment = Attachment::fromArray([
-            'type' => 'file',
-            'payload' => ['url' => 'https://u', 'token' => 't', 'filename' => 'doc.docx'],
-        ]);
-
-        $this->assertSame('doc.docx', $attachment->filename);
-        $this->assertSame(
-            ['type' => 'file', 'payload' => ['url' => 'https://u', 'token' => 't', 'filename' => 'doc.docx'], 'filename' => 'doc.docx'],
-            $attachment->toArray(),
-        );
-    }
-
-    #[Test]
-    public function it_prefers_a_top_level_filename_over_a_nested_payload(): void
-    {
-        $attachment = Attachment::fromArray([
-            'type' => 'file',
-            'filename' => 'top.pdf',
-            'payload' => ['url' => 'https://u', 'token' => 't', 'filename' => 'nested.pdf'],
-        ]);
-
-        $this->assertSame('top.pdf', $attachment->filename);
-    }
-
-    #[Test]
-    public function it_rejects_a_non_string_filename(): void
-    {
-        $this->expectException(InvalidResponseException::class);
-        $this->expectExceptionMessage('Field "filename" must be a string.');
-
-        Attachment::fromArray(['type' => 'file', 'filename' => 42, 'payload' => ['url' => 'https://u']]);
-    }
-
-    #[Test]
-    public function it_reads_a_photo_id_of_an_image_attachment(): void
+    public function it_parses_a_photo_attachment(): void
     {
         $attachment = Attachment::fromArray([
             'type' => 'image',
-            'payload' => ['url' => 'https://u', 'token' => 't', 'photo_id' => 42],
+            'payload' => ['photo_id' => 1, 'token' => 't', 'url' => 'https://i'],
         ]);
 
-        $this->assertSame(42, $attachment->payload?->photoId);
+        $this->assertInstanceOf(PhotoAttachment::class, $attachment);
+        $this->assertSame(1, $attachment->payload->photoId);
+        $this->assertSame('image', $attachment->toArray()['type']);
     }
 
     #[Test]
-    public function it_builds_a_sticker_attachment_request(): void
-    {
-        $request = AttachmentRequest::create(AttachmentType::Sticker, code: 'sticker-code');
-
-        $this->assertSame('sticker-code', $request->code);
-        $this->assertSame(['type' => 'sticker', 'payload' => ['code' => 'sticker-code']], $request->toArray());
-    }
-
-    #[Test]
-    public function it_builds_a_location_attachment_request(): void
-    {
-        $request = AttachmentRequest::create(AttachmentType::Location, latitude: 55.751244, longitude: 37.618423);
-
-        $this->assertSame(
-            ['type' => 'location', 'latitude' => 55.751244, 'longitude' => 37.618423],
-            $request->toArray(),
-        );
-    }
-
-    #[Test]
-    public function it_reads_a_sticker_and_location_attachment_request(): void
-    {
-        $sticker = AttachmentRequest::fromArray(['type' => 'sticker', 'payload' => ['code' => 'c1']]);
-        $this->assertSame('c1', $sticker->code);
-        $this->assertNull($sticker->rows);
-
-        $location = AttachmentRequest::fromArray(['type' => 'location', 'latitude' => 1, 'longitude' => 2]);
-        $this->assertSame(1.0, $location->latitude);
-        $this->assertSame(2.0, $location->longitude);
-        $this->assertArrayNotHasKey('payload', $location->toArray());
-    }
-
-    #[Test]
-    public function it_does_not_emit_an_empty_payload(): void
-    {
-        $this->assertSame(['type' => 'contact'], AttachmentRequest::create(AttachmentType::Contact)->toArray());
-    }
-
-    #[Test]
-    public function it_keeps_rows_and_code_out_of_the_payload_when_unset(): void
-    {
-        $row = new InlineKeyboardButtonRow([new InlineKeyboardButton(ButtonType::Callback, 'Go', payload: 'p')]);
-        $request = new AttachmentRequest(AttachmentType::InlineKeyboard, rows: [$row]);
-
-        $this->assertNull($request->code);
-        $this->assertNull($request->latitude);
-        $this->assertNull($request->longitude);
-        $this->assertArrayNotHasKey('code', $request->toArray()['payload']);
-    }
-
-    #[Test]
-    public function it_reads_a_contact_attachment_without_a_hash(): void
-    {
-        $payload = ContactAttachmentPayload::fromArray(['vcf_info' => 'BEGIN:VCARD']);
-
-        $this->assertSame('', $payload->hash);
-        $this->assertSame(['vcf_info' => 'BEGIN:VCARD'], $payload->toArray());
-    }
-
-    #[Test]
-    public function it_reads_a_contact_attachment_with_a_null_hash(): void
-    {
-        $payload = ContactAttachmentPayload::fromArray(['hash' => null, 'vcf_info' => 'BEGIN:VCARD']);
-
-        $this->assertSame('', $payload->hash);
-    }
-
-    #[Test]
-    public function it_rejects_a_contact_attachment_with_a_non_string_hash(): void
-    {
-        $this->expectException(InvalidResponseException::class);
-        $this->expectExceptionMessage('Field "hash" must be a string.');
-
-        ContactAttachmentPayload::fromArray(['hash' => 42]);
-    }
-
-    #[Test]
-    public function it_reads_a_recipient_post_id(): void
-    {
-        $recipient = Recipient::fromArray(['chat_id' => 5, 'chat_type' => 'channel', 'post_id' => 'mid_post']);
-
-        $this->assertSame('mid_post', $recipient->postId);
-        $this->assertSame(
-            ['chat_id' => 5, 'chat_type' => 'channel', 'post_id' => 'mid_post'],
-            $recipient->toArray(),
-        );
-    }
-
-    #[Test]
-    public function it_keeps_a_recipient_without_a_post_id(): void
-    {
-        $this->assertNull(Recipient::fromArray(['chat_id' => 5])->postId);
-        $this->assertSame(['chat_id' => 5], Recipient::fromArray(['chat_id' => 5])->toArray());
-    }
-
-    #[Test]
-    public function it_reads_a_linked_message_from_the_specification_shape(): void
-    {
-        $linked = LinkedMessage::fromArray([
-            'type' => 'reply',
-            'message' => ['mid' => 'mid.1', 'seq' => 3, 'text' => 'Original'],
-            'sender' => ['user_id' => 7, 'first_name' => 'Alice', 'is_bot' => false, 'last_activity_time' => 1000],
-            'chat_id' => 5,
-        ]);
-
-        $this->assertSame('reply', $linked->type);
-        $this->assertSame('mid.1', $linked->mid);
-        $this->assertSame(3, $linked->message?->seq);
-        $this->assertSame(7, $linked->senderUser?->userId);
-        $this->assertSame(7, $linked->sender);
-        $this->assertSame(5, $linked->chatId);
-        $this->assertSame('5', $linked->chat);
-        $this->assertSame(['mid' => 'mid.1', 'seq' => 3, 'text' => 'Original'], $linked->toArray()['message']);
-    }
-
-    #[Test]
-    public function it_reads_a_linked_message_with_a_sender_object_without_a_username(): void
-    {
-        $linked = LinkedMessage::fromArray([
-            'type' => 'forward',
-            'message' => ['mid' => 'mid.2', 'seq' => 1],
-            'sender' => ['user_id' => 8, 'first_name' => 'Bob', 'is_bot' => true, 'last_activity_time' => 1000],
-        ]);
-
-        $this->assertSame(8, $linked->sender);
-        $this->assertNull($linked->chatId);
-        $this->assertNull($linked->chat);
-    }
-
-    #[Test]
-    public function it_rejects_a_linked_message_without_a_mid(): void
-    {
-        $this->expectException(InvalidResponseException::class);
-        $this->expectExceptionMessage('Field "mid" must be a string.');
-
-        LinkedMessage::fromArray(['type' => 'reply', 'sender' => 7]);
-    }
-
-    #[Test]
-    public function it_allows_a_bot_command_without_a_description(): void
-    {
-        $command = new BotCommand('start');
-
-        $this->assertNull($command->description);
-        $this->assertSame(['name' => 'start'], $command->toArray());
-        $this->assertNull(BotCommand::fromArray(['name' => 'start'])->description);
-        $this->assertSame('start', $command->name);
-    }
-
-    #[Test]
-    public function it_reads_video_metadata_from_the_top_level_of_the_attachment(): void
+    public function it_parses_video_metadata_from_the_payload(): void
     {
         $attachment = Attachment::fromArray([
             'type' => 'video',
-            'width' => 1920,
-            'height' => 1080,
-            'duration' => 42,
+            'payload' => ['url' => 'https://v', 'token' => 'tv'],
             'thumbnail' => ['url' => 'https://thumb'],
-            'payload' => ['url' => ['mp4_720' => 'https://v720', 'hls' => 'https://v.m3u8'], 'token' => 't'],
+            'width' => 640,
+            'height' => 480,
+            'duration' => 12,
         ]);
 
-        $payload = $attachment->payload;
-        $this->assertInstanceOf(VideoAttachmentPayload::class, $payload);
-        $this->assertSame(1920, $payload->width);
-        $this->assertSame(1080, $payload->height);
-        $this->assertSame(42, $payload->duration);
-        $this->assertSame('https://thumb', $payload->thumbnail?->url);
-        $this->assertSame('https://v720', $payload->url?->mp4_720);
-        $this->assertSame('https://v.m3u8', $payload->url?->hls);
+        $this->assertInstanceOf(VideoAttachment::class, $attachment);
+        $this->assertSame('https://v', $attachment->payload->url);
+        $this->assertSame(640, $attachment->width);
+        $this->assertInstanceOf(VideoThumbnail::class, $attachment->thumbnail);
+        $this->assertSame('video', $attachment->toArray()['type']);
     }
 
     #[Test]
-    public function it_prefers_video_metadata_from_the_payload_when_both_forms_are_present(): void
+    public function it_reads_video_metadata_from_the_nested_payload_as_fallback(): void
     {
         $attachment = Attachment::fromArray([
             'type' => 'video',
-            'width' => 1920,
-            'height' => 1080,
-            'payload' => ['url' => 'https://v.mp4', 'width' => 640, 'duration' => 7],
+            'payload' => [
+                'url' => 'https://v',
+                'token' => 'tv',
+                'width' => 100,
+                'height' => 50,
+                'thumbnail' => ['url' => 'https://thumb'],
+            ],
         ]);
 
-        $payload = $attachment->payload;
-        $this->assertInstanceOf(VideoAttachmentPayload::class, $payload);
-        $this->assertSame(640, $payload->width, 'значение внутри payload не затирается верхним уровнем');
-        $this->assertSame(1080, $payload->height, 'отсутствующее в payload поле берётся с верхнего уровня');
-        $this->assertSame(7, $payload->duration);
-        $this->assertSame(640, VideoAttachmentPayload::fromArray($attachment->toArray()['payload'])->width);
+        $this->assertSame(100, $attachment->width);
+        $this->assertSame(50, $attachment->height);
+        $this->assertSame('https://thumb', $attachment->thumbnail?->url);
     }
 
     #[Test]
-    public function it_reads_an_audio_transcription_from_the_top_level_of_the_attachment(): void
+    public function it_parses_audio_transcription(): void
     {
         $attachment = Attachment::fromArray([
             'type' => 'audio',
-            'transcription' => 'привет мир',
-            'payload' => ['url' => 'https://a.mp3', 'token' => 't'],
+            'payload' => ['url' => 'https://a', 'token' => 'ta'],
+            'transcription' => 'hello',
         ]);
 
-        $payload = $attachment->payload;
-        $this->assertInstanceOf(AudioAttachmentPayload::class, $payload);
-        $this->assertSame('привет мир', $payload->transcription);
-        $this->assertSame('https://a.mp3', $payload->url);
+        $this->assertInstanceOf(AudioAttachment::class, $attachment);
+        $this->assertSame('hello', $attachment->transcription);
     }
 
     #[Test]
-    public function it_reads_file_size_from_the_top_level_of_the_attachment(): void
+    public function it_parses_file_filename_and_size_with_payload_fallback(): void
     {
         $attachment = Attachment::fromArray([
             'type' => 'file',
-            'filename' => 'Смета.pdf',
-            'size' => 2048,
-            'payload' => ['url' => 'https://u', 'token' => 't'],
+            'payload' => ['url' => 'https://f', 'token' => 'tf', 'size' => 10],
         ]);
 
-        $payload = $attachment->payload;
-        $this->assertInstanceOf(FileAttachmentPayload::class, $payload);
-        $this->assertSame(2048, $payload->size);
-        $this->assertSame('Смета.pdf', $payload->filename);
+        $this->assertInstanceOf(FileAttachment::class, $attachment);
+        $this->assertSame(10, $attachment->size);
+        $this->assertNull($attachment->filename);
     }
 
     #[Test]
-    public function it_reads_all_video_url_renditions(): void
+    public function it_parses_sticker_without_dimensions(): void
     {
-        $urls = VideoUrls::fromArray([
-            'mp4_1080' => 'https://1080',
-            'mp4_720' => 'https://720',
-            'mp4_480' => 'https://480',
-            'mp4_360' => 'https://360',
-            'mp4_240' => 'https://240',
-            'mp4_144' => 'https://144',
-            'hls' => 'https://hls',
+        $attachment = Attachment::fromArray([
+            'type' => 'sticker',
+            'payload' => ['code' => 'c', 'url' => 'https://s'],
         ]);
 
-        $this->assertSame('https://1080', $urls->mp4_1080);
-        $this->assertSame('https://144', $urls->mp4_144);
-        $this->assertSame('https://hls', $urls->hls);
-        $this->assertNull($urls->mp4);
-        $this->assertNull($urls->preview);
+        $this->assertInstanceOf(StickerAttachment::class, $attachment);
+        $this->assertSame('c', $attachment->payload->code);
+        $this->assertNull($attachment->width);
     }
 
     #[Test]
-    public function it_rejects_a_non_string_transcription(): void
+    public function it_parses_contact_attachment(): void
+    {
+        $attachment = Attachment::fromArray([
+            'type' => 'contact',
+            'payload' => ['hash' => 'h', 'vcf_info' => 'BEGIN:VCARD', 'max_info' => ['name' => 'Ivan']],
+        ]);
+
+        $this->assertInstanceOf(ContactAttachment::class, $attachment);
+        $this->assertInstanceOf(ContactAttachmentPayload::class, $attachment->payload);
+        $this->assertSame('h', $attachment->payload->hash);
+    }
+
+    #[Test]
+    public function it_parses_inline_keyboard_attachment(): void
+    {
+        $attachment = Attachment::fromArray([
+            'type' => 'inline_keyboard',
+            'payload' => ['buttons' => [[['type' => 'callback', 'text' => 'Go', 'payload' => 'p']]]],
+        ]);
+
+        $this->assertInstanceOf(InlineKeyboardAttachment::class, $attachment);
+        $this->assertInstanceOf(Keyboard::class, $attachment->payload);
+        $this->assertInstanceOf(CallbackButton::class, $attachment->payload->buttons[0][0]);
+    }
+
+    #[Test]
+    public function it_parses_share_attachment(): void
+    {
+        $attachment = Attachment::fromArray([
+            'type' => 'share',
+            'payload' => ['url' => 'https://s', 'token' => 'ts'],
+            'title' => 'Title',
+            'description' => 'Desc',
+            'image_url' => 'https://i',
+        ]);
+
+        $this->assertInstanceOf(ShareAttachment::class, $attachment);
+        $this->assertSame('Title', $attachment->title);
+        $this->assertSame('https://i', $attachment->imageUrl);
+    }
+
+    #[Test]
+    public function it_parses_location_attachment_without_payload(): void
+    {
+        $attachment = Attachment::fromArray(['type' => 'location', 'latitude' => 1.5, 'longitude' => 2.5]);
+
+        $this->assertInstanceOf(LocationAttachment::class, $attachment);
+        $this->assertSame(1.5, $attachment->latitude);
+        $this->assertSame('location', $attachment->toArray()['type']);
+    }
+
+    #[Test]
+    public function it_rejects_an_unknown_attachment_type(): void
     {
         $this->expectException(InvalidResponseException::class);
-        $this->expectExceptionMessage('Field "transcription" must be a string.');
+        $this->expectExceptionMessage('Unsupported attachment type "poll".');
 
-        AudioAttachmentPayload::fromArray(['transcription' => 5]);
+        Attachment::fromArray(['type' => 'poll']);
+    }
+
+    #[Test]
+    public function it_parses_attachment_requests(): void
+    {
+        $photo = AttachmentRequest::fromArray(['type' => 'image', 'payload' => ['token' => 't']]);
+        $video = AttachmentRequest::fromArray(['type' => 'video', 'payload' => ['token' => 't']]);
+        $audio = AttachmentRequest::fromArray(['type' => 'audio', 'payload' => ['token' => 't']]);
+        $file = AttachmentRequest::fromArray(['type' => 'file', 'payload' => ['token' => 't']]);
+        $sticker = AttachmentRequest::fromArray(['type' => 'sticker', 'payload' => ['code' => 'c']]);
+        $contact = AttachmentRequest::fromArray(['type' => 'contact', 'payload' => ['vcf_info' => 'v']]);
+        $keyboard = AttachmentRequest::fromArray(['type' => 'inline_keyboard', 'payload' => ['buttons' => [[['type' => 'message', 'text' => 'M']]]]]);
+        $share = AttachmentRequest::fromArray(['type' => 'share', 'payload' => ['url' => 'https://s']]);
+        $location = AttachmentRequest::fromArray(['type' => 'location', 'latitude' => 1.0, 'longitude' => 2.0]);
+
+        $this->assertInstanceOf(PhotoAttachmentRequest::class, $photo);
+        $this->assertInstanceOf(VideoAttachmentRequest::class, $video);
+        $this->assertInstanceOf(AudioAttachmentRequest::class, $audio);
+        $this->assertInstanceOf(FileAttachmentRequest::class, $file);
+        $this->assertInstanceOf(StickerAttachmentRequest::class, $sticker);
+        $this->assertInstanceOf(ContactAttachmentRequest::class, $contact);
+        $this->assertInstanceOf(InlineKeyboardAttachmentRequest::class, $keyboard);
+        $this->assertInstanceOf(ShareAttachmentRequest::class, $share);
+        $this->assertInstanceOf(LocationAttachmentRequest::class, $location);
+        $this->assertSame('location', $location->toArray()['type']);
+    }
+
+    #[Test]
+    public function it_roundtrips_request_payloads(): void
+    {
+        $photo = new PhotoAttachmentRequestPayload(token: 't', url: 'https://u');
+        $this->assertSame(['token' => 't', 'url' => 'https://u'], $photo->toArray());
+
+        $sticker = new StickerAttachmentRequestPayload('c');
+        $this->assertSame(['code' => 'c'], $sticker->toArray());
+
+        $contact = new ContactAttachmentRequestPayload(name: 'Ivan', contactId: 1, vcfInfo: 'v', vcfPhone: '7');
+        $this->assertSame('Ivan', $contact->toArray()['name']);
+
+        $keyboard = new InlineKeyboardAttachmentRequestPayload([[new MessageButton('M')]]);
+        $this->assertSame('message', $keyboard->toArray()['buttons'][0][0]['type']);
+
+        $uploaded = new UploadedInfo('token');
+        $this->assertSame(['token' => 'token'], $uploaded->toArray());
+
+        $share = new ShareAttachmentPayload('https://s', 't');
+        $this->assertSame('https://s', $share->toArray()['url']);
+    }
+
+    #[Test]
+    public function it_roundtrips_all_buttons(): void
+    {
+        $buttons = [
+            new CallbackButton('C', 'p'),
+            new LinkButton('L', 'https://l'),
+            new MessageButton('M'),
+            new RequestContactButton('R'),
+            new RequestGeoLocationButton('G', true),
+            new OpenAppButton('O', 'app', 'p', 5),
+            new ClipboardButton('B', 'p'),
+        ];
+
+        foreach ($buttons as $button) {
+            $parsed = Button::fromArray($button->toArray());
+            $this->assertSame($button->toArray(), $parsed->toArray());
+        }
+
+        $this->assertTrue(RequestGeoLocationButton::fromArray(['text' => 'G', 'quick' => true])->quick);
+        $this->assertSame('https://l', LinkButton::fromArray(['text' => 'L', 'url' => 'https://l'])->url);
+        $this->assertSame('app', OpenAppButton::fromArray(['text' => 'O', 'web_app' => 'app'])->webApp);
+    }
+
+    #[Test]
+    public function it_rejects_an_unknown_button_type(): void
+    {
+        $this->expectException(InvalidResponseException::class);
+        $this->expectExceptionMessage('Unsupported button type "video_note".');
+
+        Button::fromArray(['type' => 'video_note', 'text' => 'X']);
+    }
+
+    #[Test]
+    public function it_parses_keyboard_and_media_payloads(): void
+    {
+        $keyboard = Keyboard::fromArray(['buttons' => [[['type' => 'link', 'text' => 'L', 'url' => 'https://l']]]]);
+        $this->assertInstanceOf(LinkButton::class, $keyboard->buttons[0][0]);
+
+        $media = MediaAttachmentPayload::fromArray(['url' => 'https://m', 'token' => 't']);
+        $this->assertSame('https://m', $media->url);
+
+        $photo = PhotoAttachmentPayload::fromArray(['photo_id' => 1, 'token' => 't', 'url' => 'https://p']);
+        $this->assertSame(1, $photo->photoId);
+
+        $sticker = StickerAttachmentPayload::fromArray(['url' => 'https://s', 'code' => 'c']);
+        $this->assertSame('c', $sticker->code);
+
+        $thumbnail = VideoThumbnail::fromArray(['url' => 'https://t', 'width' => 1, 'height' => 2]);
+        $this->assertSame(1, $thumbnail->width);
+    }
+
+    #[Test]
+    public function it_rejects_invalid_required_payload_fields(): void
+    {
+        $this->expectException(InvalidResponseException::class);
+
+        MediaAttachmentPayload::fromArray(['url' => 'https://m']);
     }
 }

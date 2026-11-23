@@ -5,7 +5,7 @@ date: 2026-10-19
 
 ## Проблема
 
-Регрессия из filament-max-chat (хост i2tech): контакт пользователя не доходит до чата вообще. Официальная OpenAPI-спека
+Регрессия из интеграционного пакета (стенд интегратора): контакт пользователя не доходит до чата вообще. Официальная OpenAPI-спека
 MAX объявляет `ContactAttachmentPayload.hash` nullable, а `fromArray()` требовал строку: при `hash: null` или отсутствии
 выбрасывал `InvalidResponseException`, контроллер вебхука отвечал `400 invalid_payload`, и апдейт терялся целиком.
 Воспроизведено скриптом на четырёх нагрузках через `WebhookHandler::decode`: обе контактные падали. Строгое требование
@@ -18,7 +18,7 @@ MAX объявляет `ContactAttachmentPayload.hash` nullable, а `fromArray()
 - `toArray()`: пустой `hash` не сериализуется. `ContactVerifier::verify()` с пустым хэшем и раньше возвращает `false`
   (fail-closed) — `MaxContactService` в адаптере без правок, неподписанный телефон не принимается.
 - Документация: `docs/api-reference.md` раздел 7, `README.md` «История изменений»,
-  `.agents/release/RELEASE_NOTES_v1.1.11.md` (в работе), план `2026-10-19-contact-hash-tolerance.md`.
+  `.agents/release/RELEASE_NOTES_v1.1.11.md` (выпущено), план `2026-10-19-contact-hash-tolerance.md`.
 
 ## Тесты
 
@@ -30,9 +30,8 @@ MAX объявляет `ContactAttachmentPayload.hash` nullable, а `fromArray()
 
 Опросы (`type: "poll"`) и «серая область» стикера отложены решением пользователя: poll-типа нет ни в спеке, ни в
 `AttachmentType` (нужна общая терпимость к неизвестным типам — отдельная задача). Стикер позже диагностирован по
-прод-логу i2tech: MAX-CDN сам отдаёт stub-URL и серую заглушку — правок в ядре не требуется, подробности в журнале
-filament-max-chat (сессия `2026-10-19-contact-hash-and-sticker-diagnosis.md`). Порядок выпуска: ядро `v1.1.11` первым,
-затем пол `^1.1.11` и Gate в filament-max-chat; для i2tech —
+прод-логу интеграционного проекта: MAX-CDN сам отдаёт stub-URL и серую заглушку — правок в ядре не требуется, подробности в журнале интеграционного пакета (сессия `2026-10-19-contact-hash-and-sticker-diagnosis.md`). Порядок выпуска: ядро `v1.1.11` первым,
+затем пол `^1.1.11` и Gate в интеграционном пакете; для интеграционного проекта —
 `composer update geekcodev/max-php-client`.
 
 ## Gate

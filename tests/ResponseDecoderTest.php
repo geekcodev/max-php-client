@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Tests;
 
-use GeekCo\MaxPhpClient\Dto\ErrorResponse;
+use GeekCo\MaxPhpClient\Dto\Error;
 use GeekCo\MaxPhpClient\Exception\ApiException;
 use GeekCo\MaxPhpClient\Exception\AttachmentNotReadyException;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
@@ -75,7 +75,7 @@ final class ResponseDecoderTest extends TestCase
         } catch (ApiException $e) {
             $this->assertSame(400, $e->statusCode);
             $this->assertSame('Wrong', $e->getMessage());
-            $this->assertInstanceOf(ErrorResponse::class, $e->getError());
+            $this->assertInstanceOf(Error::class, $e->getError());
             $this->assertSame('bad', $e->getErrorCode());
             $this->assertSame('detail', $e->getErrorValue());
         }

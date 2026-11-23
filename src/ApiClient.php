@@ -4,18 +4,17 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient;
 
-use GeekCo\MaxPhpClient\Dto\AddChatMembersResult;
+use GeekCo\MaxPhpClient\Dto\ModifyMembersResult;
 use GeekCo\MaxPhpClient\Dto\BotCommand;
-use GeekCo\MaxPhpClient\Dto\BotCommandsResult;
+use GeekCo\MaxPhpClient\Dto\BotCommandsInfo;
 use GeekCo\MaxPhpClient\Dto\BotInfo;
 use GeekCo\MaxPhpClient\Dto\Chat;
 use GeekCo\MaxPhpClient\Dto\ChatAdminsResult;
-use GeekCo\MaxPhpClient\Dto\ChatListResult;
 use GeekCo\MaxPhpClient\Dto\ChatMember;
-use GeekCo\MaxPhpClient\Dto\ChatMembersResult;
+use GeekCo\MaxPhpClient\Dto\ChatMembersList;
 use GeekCo\MaxPhpClient\Dto\CommentMessage;
 use GeekCo\MaxPhpClient\Dto\CommentMessageList;
-use GeekCo\MaxPhpClient\Dto\EditChatBody;
+use GeekCo\MaxPhpClient\Dto\ChatPatch;
 use GeekCo\MaxPhpClient\Dto\Message;
 use GeekCo\MaxPhpClient\Dto\NewCommentBody;
 use GeekCo\MaxPhpClient\Dto\NewMessageBody;
@@ -23,17 +22,15 @@ use GeekCo\MaxPhpClient\Dto\PinMessageBody;
 use GeekCo\MaxPhpClient\Dto\Recipient;
 use GeekCo\MaxPhpClient\Dto\SendCommentResult;
 use GeekCo\MaxPhpClient\Dto\Subscription;
-use GeekCo\MaxPhpClient\Dto\SuccessResponse;
-use GeekCo\MaxPhpClient\Dto\Update;
-use GeekCo\MaxPhpClient\Dto\UpdatesResult;
-use GeekCo\MaxPhpClient\Dto\UploadedInfo;
-use GeekCo\MaxPhpClient\Dto\VideoInfo;
+use GeekCo\MaxPhpClient\Dto\SimpleQueryResult;
+use GeekCo\MaxPhpClient\Dto\UpdateList;
+use GeekCo\MaxPhpClient\Dto\UploadEndpoint;
+use GeekCo\MaxPhpClient\Dto\VideoAttachmentDetails;
 use GeekCo\MaxPhpClient\Enum\ChatAdminPermission;
 use GeekCo\MaxPhpClient\Enum\SenderAction;
 use GeekCo\MaxPhpClient\Enum\UploadType;
 use GeekCo\MaxPhpClient\Exception\InvalidArgumentException;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
-use GeekCo\MaxPhpClient\Internal\Json;
 use GeekCo\MaxPhpClient\RateLimit\RateLimiter;
 use GeekCo\MaxPhpClient\Retry\RetryStrategy;
 use GeekCo\MaxPhpClient\Transport\HttpClient;
@@ -90,7 +87,7 @@ final class ApiClient
     /**
      * @param list<BotCommand> $commands
      */
-    public function editBotCommands(array $commands): BotCommandsResult
+    public function editBotCommands(array $commands): BotCommandsInfo
     {
         if (count($commands) > self::MAX_BOT_COMMANDS) {
             throw new InvalidArgumentException(
@@ -100,17 +97,7 @@ final class ApiClient
 
         $body = ['commands' => array_map(static fn (BotCommand $command): array => $command->toArray(), $commands)];
 
-        return BotCommandsResult::fromArray($this->requestObject('PATCH', '/me/commands', jsonBody: $body));
-    }
-
-    /**
-     * @deprecated Use webhook subscriptions and store chat_id locally instead.
-     */
-    public function getChats(?int $marker = null, ?int $count = null): ChatListResult
-    {
-        $query = $this->query(['marker' => $marker, 'count' => $count]);
-
-        return ChatListResult::fromArray($this->requestObject('GET', '/chats', $query));
+        return BotCommandsInfo::fromArray($this->requestObject('PATCH', '/me/commands', jsonBody: $body));
     }
 
     public function getChat(int $chatId): Chat
@@ -118,18 +105,18 @@ final class ApiClient
         return Chat::fromArray($this->requestObject('GET', sprintf('/chats/%d', $chatId)));
     }
 
-    public function editChat(int $chatId, EditChatBody $body): Chat
+    public function editChat(int $chatId, ChatPatch $body): Chat
     {
         $this->acquire($chatId);
 
         return Chat::fromArray($this->requestObject('PATCH', sprintf('/chats/%d', $chatId), jsonBody: $body->toArray()));
     }
 
-    public function sendBotAction(int $chatId, SenderAction $action): SuccessResponse
+    public function sendChatAction(int $chatId, SenderAction $action): SimpleQueryResult
     {
         $this->acquire($chatId);
 
-        return SuccessResponse::fromArray(
+        return SimpleQueryResult::fromArray(
             $this->requestObject('POST', sprintf('/chats/%d/actions', $chatId), jsonBody: ['action' => $action->value]),
         );
     }
@@ -146,20 +133,20 @@ final class ApiClient
         return \is_array($messageData) ? Message::fromArray($messageData) : null;
     }
 
-    public function pinMessage(int $chatId, PinMessageBody $body): SuccessResponse
+    public function pinMessage(int $chatId, PinMessageBody $body): SimpleQueryResult
     {
         $this->acquire($chatId);
 
-        return SuccessResponse::fromArray(
+        return SimpleQueryResult::fromArray(
             $this->requestObject('PUT', sprintf('/chats/%d/pin', $chatId), jsonBody: $body->toArray()),
         );
     }
 
-    public function unpinMessage(int $chatId): SuccessResponse
+    public function unpinMessage(int $chatId): SimpleQueryResult
     {
         $this->acquire($chatId);
 
-        return SuccessResponse::fromArray($this->requestObject('DELETE', sprintf('/chats/%d/pin', $chatId)));
+        return SimpleQueryResult::fromArray($this->requestObject('DELETE', sprintf('/chats/%d/pin', $chatId)));
     }
 
     public function getBotMembership(int $chatId): ChatMember
@@ -167,11 +154,11 @@ final class ApiClient
         return ChatMember::fromArray($this->requestObject('GET', sprintf('/chats/%d/members/me', $chatId)));
     }
 
-    public function removeBotFromChat(int $chatId): SuccessResponse
+    public function removeBotFromChat(int $chatId): SimpleQueryResult
     {
         $this->acquire($chatId);
 
-        return SuccessResponse::fromArray($this->requestObject('DELETE', sprintf('/chats/%d/members/me', $chatId)));
+        return SimpleQueryResult::fromArray($this->requestObject('DELETE', sprintf('/chats/%d/members/me', $chatId)));
     }
 
     /**
@@ -194,7 +181,7 @@ final class ApiClient
         array $permissions,
         ?string $alias = null,
         ?int $marker = null,
-    ): SuccessResponse {
+    ): SimpleQueryResult {
         $this->acquire($chatId);
 
         foreach ($permissions as $permission) {
@@ -216,16 +203,16 @@ final class ApiClient
             $body['marker'] = $marker;
         }
 
-        return SuccessResponse::fromArray(
+        return SimpleQueryResult::fromArray(
             $this->requestObject('POST', sprintf('/chats/%d/members/admins', $chatId), jsonBody: $body),
         );
     }
 
-    public function removeChatAdmin(int $chatId, int $userId): SuccessResponse
+    public function removeChatAdmin(int $chatId, int $userId): SimpleQueryResult
     {
         $this->acquire($chatId);
 
-        return SuccessResponse::fromArray(
+        return SimpleQueryResult::fromArray(
             $this->requestObject('DELETE', sprintf('/chats/%d/members/admins/%d', $chatId, $userId)),
         );
     }
@@ -238,7 +225,7 @@ final class ApiClient
         ?array $userIds = null,
         ?int $marker = null,
         ?int $count = null,
-    ): ChatMembersResult {
+    ): ChatMembersList {
         if ($count !== null && ($count < 1 || $count > 100)) {
             throw new InvalidArgumentException('count must be between 1 and 100.');
         }
@@ -249,7 +236,7 @@ final class ApiClient
             'count' => $count,
         ]);
 
-        return ChatMembersResult::fromArray(
+        return ChatMembersList::fromArray(
             $this->requestObject('GET', sprintf('/chats/%d/members', $chatId), $query),
         );
     }
@@ -260,7 +247,7 @@ final class ApiClient
      * С 9 сентября 2026 метод ограничен со стороны MAX (changelog API), но в спеке
      * и официальной `schema.yaml` присутствует, пометки об удалении нет.
      */
-    public function addChatMembers(int $chatId, array $userIds): AddChatMembersResult
+    public function addChatMembers(int $chatId, array $userIds): ModifyMembersResult
     {
         if ($userIds === []) {
             throw new InvalidArgumentException('user_ids must not be empty.');
@@ -273,18 +260,18 @@ final class ApiClient
 
         $this->acquire($chatId);
 
-        return AddChatMembersResult::fromArray(
+        return ModifyMembersResult::fromArray(
             $this->requestObject('POST', sprintf('/chats/%d/members', $chatId), jsonBody: ['user_ids' => $userIds]),
         );
     }
 
-    public function removeChatMember(int $chatId, int $userId, bool $block = false): SuccessResponse
+    public function removeChatMember(int $chatId, int $userId, bool $block = false): SimpleQueryResult
     {
         $this->acquire($chatId);
 
         $query = $this->query(['user_id' => $userId, 'block' => $block]);
 
-        return SuccessResponse::fromArray($this->requestObject('DELETE', sprintf('/chats/%d/members', $chatId), $query));
+        return SimpleQueryResult::fromArray($this->requestObject('DELETE', sprintf('/chats/%d/members', $chatId), $query));
     }
 
     /**
@@ -302,7 +289,7 @@ final class ApiClient
     /**
      * @param list<string>|null $updateTypes
      */
-    public function createSubscription(string $url, ?array $updateTypes = null, ?string $secret = null): SuccessResponse
+    public function createSubscription(string $url, ?array $updateTypes = null, ?string $secret = null): SimpleQueryResult
     {
         if ($secret !== null && !preg_match('/^[a-zA-Z0-9_-]{5,256}$/', $secret)) {
             throw new InvalidArgumentException(
@@ -318,30 +305,20 @@ final class ApiClient
             $body['secret'] = $secret;
         }
 
-        return SuccessResponse::fromArray($this->requestObject('POST', '/subscriptions', jsonBody: $body));
+        return SimpleQueryResult::fromArray($this->requestObject('POST', '/subscriptions', jsonBody: $body));
     }
 
-    public function deleteSubscription(string $url): SuccessResponse
+    public function deleteSubscription(string $url): SimpleQueryResult
     {
         $query = $this->query(['url' => $url]);
 
-        return SuccessResponse::fromArray($this->requestObject('DELETE', '/subscriptions', $query));
-    }
-
-    /**
-     * @param list<string>|null $types
-     *
-     * @return list<Update>
-     */
-    public function getUpdates(?int $limit = null, ?int $timeout = null, ?int $marker = null, ?array $types = null): array
-    {
-        return $this->getUpdatesBatch($limit, $timeout, $marker, $types)->updates;
+        return SimpleQueryResult::fromArray($this->requestObject('DELETE', '/subscriptions', $query));
     }
 
     /**
      * @param list<string>|null $types
      */
-    public function getUpdatesBatch(?int $limit = null, ?int $timeout = null, ?int $marker = null, ?array $types = null): UpdatesResult
+    public function getUpdates(?int $limit = null, ?int $timeout = null, ?int $marker = null, ?array $types = null): UpdateList
     {
         if ($limit !== null && ($limit < 1 || $limit > 1000)) {
             throw new InvalidArgumentException('limit must be between 1 and 1000.');
@@ -357,14 +334,7 @@ final class ApiClient
             'types' => $types !== null ? implode(',', $types) : null,
         ]);
 
-        $data = $this->request('GET', '/updates', $query);
-        if (!\is_array($data)) {
-            throw new InvalidResponseException('Expected a JSON object in the response.');
-        }
-
-        $updates = $this->listFromField($data, 'updates', static fn (array $item): Update => Update::fromArray($item));
-
-        return new UpdatesResult($updates, Json::int($data, 'marker'));
+        return UpdateList::fromArray($this->requestObject('GET', '/updates', $query));
     }
 
     /**
@@ -423,18 +393,18 @@ final class ApiClient
         return Message::fromArray($messageData);
     }
 
-    public function editMessage(string $messageId, NewMessageBody $body): SuccessResponse
+    public function editMessage(string $messageId, NewMessageBody $body): SimpleQueryResult
     {
         $query = $this->query(['message_id' => $messageId]);
 
-        return SuccessResponse::fromArray($this->requestObject('PUT', '/messages', $query, $body->toArray()));
+        return SimpleQueryResult::fromArray($this->requestObject('PUT', '/messages', $query, $body->toArray()));
     }
 
-    public function deleteMessage(string $messageId): SuccessResponse
+    public function deleteMessage(string $messageId): SimpleQueryResult
     {
         $query = $this->query(['message_id' => $messageId]);
 
-        return SuccessResponse::fromArray($this->requestObject('DELETE', '/messages', $query));
+        return SimpleQueryResult::fromArray($this->requestObject('DELETE', '/messages', $query));
     }
 
     public function getMessageById(string $messageId): Message
@@ -442,12 +412,12 @@ final class ApiClient
         return Message::fromArray($this->requestObject('GET', sprintf('/messages/%s', $this->messageId($messageId))));
     }
 
-    public function getVideoInfo(string $videoToken): VideoInfo
+    public function getVideoAttachmentDetails(string $videoToken): VideoAttachmentDetails
     {
-        return VideoInfo::fromArray($this->requestObject('GET', sprintf('/videos/%s', $videoToken)));
+        return VideoAttachmentDetails::fromArray($this->requestObject('GET', sprintf('/videos/%s', $videoToken)));
     }
 
-    public function uploadMedia(UploadType $type, string $filePath): UploadedInfo
+    public function uploadMedia(UploadType $type, string $filePath): UploadEndpoint
     {
         if ($this->uploader === null) {
             throw new \LogicException('Upload support is not enabled for this client instance.');
@@ -456,12 +426,15 @@ final class ApiClient
         return $this->uploader->upload($type, $filePath);
     }
 
-    public function sendAnswer(
+    public function answerCallback(
         string $callbackId,
         ?NewMessageBody $message = null,
         ?string $notification = null,
         ?bool $disableLinkPreview = null,
-    ): SuccessResponse {
+    ): SimpleQueryResult {
+        if (trim($callbackId) === '') {
+            throw new InvalidArgumentException('callback_id must not be empty.');
+        }
         if ($message === null && $notification === null) {
             throw new InvalidArgumentException('Either $message or $notification must be provided to answer a callback.');
         }
@@ -482,7 +455,7 @@ final class ApiClient
             static fn (mixed $value): bool => $value !== null,
         );
 
-        return SuccessResponse::fromArray($this->requestObject('POST', '/answers', $query, $body));
+        return SimpleQueryResult::fromArray($this->requestObject('POST', '/answers', $query, $body));
     }
 
     /**
@@ -525,7 +498,7 @@ final class ApiClient
         return $result->message;
     }
 
-    public function editComment(string $messageId, string $commentId, NewCommentBody $body): SuccessResponse
+    public function editComment(string $messageId, string $commentId, NewCommentBody $body): SimpleQueryResult
     {
         if ($body->toArray() === []) {
             throw new InvalidArgumentException('A comment must contain text, formatting or a link.');
@@ -533,21 +506,21 @@ final class ApiClient
 
         $query = $this->query(['comment_id' => $this->commentId($commentId)]);
 
-        return SuccessResponse::fromArray(
+        return SimpleQueryResult::fromArray(
             $this->requestObject('PUT', sprintf('/messages/%s/comments', $this->messageId($messageId)), $query, $body->toArray()),
         );
     }
 
-    public function deleteComment(string $messageId, string $commentId): SuccessResponse
+    public function deleteComment(string $messageId, string $commentId): SimpleQueryResult
     {
         $query = $this->query(['comment_id' => $this->commentId($commentId)]);
 
-        return SuccessResponse::fromArray(
+        return SimpleQueryResult::fromArray(
             $this->requestObject('DELETE', sprintf('/messages/%s/comments', $this->messageId($messageId)), $query),
         );
     }
 
-    public function getComment(string $messageId, string $commentId): CommentMessage
+    public function getCommentById(string $messageId, string $commentId): CommentMessage
     {
         return CommentMessage::fromArray($this->requestObject(
             'GET',

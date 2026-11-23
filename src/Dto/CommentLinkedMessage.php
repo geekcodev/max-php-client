@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Dto;
 
+use GeekCo\MaxPhpClient\Enum\MessageLinkType;
 use GeekCo\MaxPhpClient\Internal\Json;
 
 /**
@@ -13,7 +14,7 @@ use GeekCo\MaxPhpClient\Internal\Json;
 readonly class CommentLinkedMessage
 {
     public function __construct(
-        public string $type,
+        public MessageLinkType $type,
         public CommentMessageBody $message,
         public ?User $sender = null,
         public ?int $chatId = null,
@@ -30,7 +31,8 @@ readonly class CommentLinkedMessage
         $senderData = $data['sender'] ?? null;
 
         return new self(
-            type: Json::requiredString($data, 'type'),
+            type: Json::enum(MessageLinkType::class, $data, 'type')
+                ?? throw new \GeekCo\MaxPhpClient\Exception\InvalidResponseException('Field "type" must be a string.'),
             message: CommentMessageBody::fromArray($messageData),
             sender: \is_array($senderData) ? User::fromArray($senderData) : null,
             chatId: Json::tolerantInt($data, 'chat_id'),
@@ -40,7 +42,7 @@ readonly class CommentLinkedMessage
     public function toArray(): array
     {
         return array_filter([
-            'type' => $this->type,
+            'type' => $this->type->value,
             'message' => $this->message->toArray(),
             'sender' => $this->sender?->toArray(),
             'chat_id' => $this->chatId,

@@ -31,16 +31,21 @@ final class LongPollingRunnerTest extends TestCase
         $http->next(fn ($request) => $this->response($factory, ['updates' => [[
             'update_type' => 'message_created',
             'timestamp' => 10,
-            'chat_id' => 1,
-            'user' => ['user_id' => 2, 'first_name' => 'A', 'is_bot' => false, 'last_activity_time' => 10],
+            'message' => [
+                'recipient' => ['chat_id' => 1],
+                'timestamp' => 10,
+                'body' => ['mid' => 'm1', 'seq' => 1, 'text' => 'one'],
+            ],
         ]], 'marker' => 50]));
         $http->next(fn ($request) => $this->response($factory, ['updates' => [[
             'update_type' => 'message_created',
             'timestamp' => 20,
-            'chat_id' => 1,
-            'user' => ['user_id' => 2, 'first_name' => 'A', 'is_bot' => false, 'last_activity_time' => 10],
+            'message' => [
+                'recipient' => ['chat_id' => 1],
+                'timestamp' => 20,
+                'body' => ['mid' => 'm2', 'seq' => 2, 'text' => 'two'],
+            ],
         ]], 'marker' => 60]));
-        ;
 
         $seen = [];
         $runner = new LongPollingRunner($client, static function ($update) use (&$seen): bool {
@@ -96,8 +101,11 @@ final class LongPollingRunnerTest extends TestCase
         $http->next(fn ($request) => $this->response($factory, ['updates' => [[
             'update_type' => 'message_created',
             'timestamp' => 30,
-            'chat_id' => 1,
-            'user' => ['user_id' => 2, 'first_name' => 'A', 'is_bot' => false, 'last_activity_time' => 10],
+            'message' => [
+                'recipient' => ['chat_id' => 1],
+                'timestamp' => 30,
+                'body' => ['mid' => 'm3', 'seq' => 3, 'text' => 'three'],
+            ],
         ]], 'marker' => 30]));
 
         $seen = [];

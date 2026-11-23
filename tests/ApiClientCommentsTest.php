@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Tests;
 
+use GeekCo\MaxPhpClient\Enum\MessageLinkType;
 use GuzzleHttp\Psr7\HttpFactory;
 use GeekCo\MaxPhpClient\ApiClient;
 use GeekCo\MaxPhpClient\Dto\NewCommentBody;
@@ -85,7 +86,7 @@ final class ApiClientCommentsTest extends TestCase
 
         $comment = $this->client()->sendComment(
             'mid_post',
-            NewCommentBody::create('Nice post', TextFormat::Html, new NewMessageLink('reply', 'mid_post')),
+            NewCommentBody::create('Nice post', TextFormat::Html, new NewMessageLink(MessageLinkType::Reply, 'mid_post')),
             disableLinkPreview: true,
         );
 
@@ -163,7 +164,7 @@ final class ApiClientCommentsTest extends TestCase
     {
         $this->http->next(fn ($request) => $this->json(self::COMMENT));
 
-        $comment = $this->client()->getComment('mid_post', 'c1');
+        $comment = $this->client()->getCommentById('mid_post', 'c1');
 
         $request = $this->http->requests[0];
         $this->assertSame('GET', $request->getMethod());
@@ -194,7 +195,7 @@ final class ApiClientCommentsTest extends TestCase
     {
         $this->http->next(fn ($request) => $this->json(['success' => true]));
 
-        $this->client()->sendAnswer('c1', notification: 'Готово', disableLinkPreview: true);
+        $this->client()->answerCallback('c1', notification: 'Готово', disableLinkPreview: true);
 
         $request = $this->http->requests[0];
         $this->assertSame('POST', $request->getMethod());

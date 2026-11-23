@@ -11,8 +11,9 @@ require __DIR__ . '/bootstrap.php';
  * Отправка личного сообщения пользователю и получение информации о нём.
  *
  * Где взять user_id и chat_id:
- *  - любой апдейт (bot_started, message_created, message_callback и т.д.)
- *    содержит отправителя: $update->user->userId, а chat_id диалога — $update->chatId;
+ *  - любой апдейт содержит отправителя и chat_id в своём подтипе: например, для
+ *    `MessageCreatedUpdate` — `$update->message->sender?->userId` и `$update->message->recipient->chatId`,
+ *    для `BotStartedUpdate` — `$update->user->userId` и `$update->chatId`;
  *  - информация о пользователе — через getChatMembers(chatId, [userId]);
  *  - для диалога можно получить собеседника и через getChat(): $chat->dialogWithUser.
  *

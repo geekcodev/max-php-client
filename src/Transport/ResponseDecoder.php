@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace GeekCo\MaxPhpClient\Transport;
 
-use GeekCo\MaxPhpClient\Dto\ErrorResponse;
+use GeekCo\MaxPhpClient\Dto\Error;
 use GeekCo\MaxPhpClient\Exception\ApiException;
 use GeekCo\MaxPhpClient\Exception\AttachmentNotReadyException;
 use GeekCo\MaxPhpClient\Exception\InvalidResponseException;
@@ -35,7 +35,7 @@ final class ResponseDecoder
         $decoded = $this->tryJson($body);
         if (\is_array($decoded) && isset($decoded['code'], $decoded['message'])) {
             try {
-                $error = ErrorResponse::fromArray($decoded);
+                $error = Error::fromArray($decoded);
             } catch (InvalidResponseException) {
                 $error = null;
             }

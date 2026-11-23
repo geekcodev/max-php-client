@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace GeekCo\MaxPhpClient\Dto;
 
 use GeekCo\MaxPhpClient\Enum\TextFormat;
+use GeekCo\MaxPhpClient\Exception\InvalidArgumentException;
 use GeekCo\MaxPhpClient\Internal\Json;
 
 readonly class NewMessageBody
@@ -19,6 +20,7 @@ readonly class NewMessageBody
         public ?bool $notify = null,
         public ?TextFormat $format = null,
     ) {
+        self::validateText($text);
     }
 
     /**
@@ -62,5 +64,12 @@ readonly class NewMessageBody
             'notify' => $this->notify,
             'format' => $this->format?->value,
         ], static fn (mixed $value): bool => $value !== null);
+    }
+
+    private static function validateText(?string $text): void
+    {
+        if ($text !== null && mb_strlen($text) > 4000) {
+            throw new InvalidArgumentException('Message text must not exceed 4000 characters.');
+        }
     }
 }
